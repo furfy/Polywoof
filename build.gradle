@@ -24,7 +24,7 @@ dependencies {
 }
 
 group = 'com.polywoof'
-version = '0.1a'
+version = '0.2a'
 sourceCompatibility = '1.8'
 
 tasks.withType(JavaCompile) {

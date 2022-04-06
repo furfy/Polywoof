@@ -5,7 +5,9 @@ import net.runelite.client.ui.overlay.Overlay;
 
 import javax.inject.Inject;
 import java.awt.*;
+import java.util.Arrays;
 import java.util.LinkedHashMap;
+import java.util.LinkedList;
 import java.util.Map;
 
 @Slf4j
@@ -83,12 +85,12 @@ public class PolywoofOverlay extends Overlay
 
     public void put(String text)
     {
-        subtitles.put(System.currentTimeMillis() + 10000, text);
+        if(text.length() > 0) subtitles.put(2000L + System.currentTimeMillis() + (long)(1000f * text.length() * (1f / config.readingSpeed())), text);
     }
 
     public void set(Integer id, String text)
     {
-        permament.put(id, text);
+        if(text.length() > 0) permament.put(id, text);
     }
 
     public void vanish(Integer id)
@@ -102,18 +104,65 @@ public class PolywoofOverlay extends Overlay
 
     public void update()
     {
-        font = new Font(config.font(), Font.PLAIN, config.size());
+        font = new Font(config.fontName(), Font.PLAIN, config.fontSize());
     }
 
     private int draw(Graphics2D graphics, String text, Font font, int x, int y, float alpha, TextAlignment alignment)
     {
+        String[] split = text.split("\n");
+        LinkedList<String> lines = new LinkedList<>(Arrays.asList(split));
         FontMetrics metrics = graphics.getFontMetrics(font);
-        String[] lines = text.split("\n");
+
         int ascent = metrics.getAscent();
         int padding = 8;
         int spacing = 4;
         int width = 0;
         int height = padding * 2;
+
+        for(int l = 0; l < lines.size(); l++)
+        {
+            StringBuilder compare = new StringBuilder();
+            String line = lines.get(l);
+
+            int logical = 0;
+            int character;
+
+            for(int i = 0; i < line.length(); i++)
+            {
+                char at = line.charAt(i);
+
+                switch (at)
+                {
+                    case ' ':
+                    case '.':
+                    case ',':
+                    case ';':
+                    case '-':
+                        logical = i;
+                        character = 0;
+                        break;
+                    default:
+                        character = i;
+                        break;
+                }
+
+                compare.append(at);
+
+                if(metrics.stringWidth(compare.toString()) > config.wrapWidth())
+                {
+                    int cut = Math.min(logical, character);
+
+                    if(cut == 0) cut = Math.max(logical, character);
+                    if(cut == 0) break;
+
+                    String sub = line.substring(cut + 1).trim();
+
+                    lines.set(l, line.substring(0, cut + 1).trim());
+                    if(sub.length() > 0) lines.add(l + 1, sub);
+                    break;
+                }
+            }
+        }
 
         for(String line : lines)
         {
@@ -122,7 +171,7 @@ public class PolywoofOverlay extends Overlay
         }
 
         height -= spacing;
-        Color c1 = config.color();
+        Color c1 = config.overlayColor();
 
         graphics.setColor(new Color(c1.getRed(), c1.getGreen(), c1.getBlue(), Math.round(c1.getAlpha() * alpha)));
 
