@@ -11,13 +11,13 @@ public interface PolywoofConfig extends Config
 	@ConfigSection( name = "Primary", description = "General stuff", position = 0 )
 	String primarySection = "primarySection";
 
-	@ConfigItem( keyName = "language", name = "Target language", description = "Type your desired one", section = primarySection, position = 0 )
+	@ConfigItem( keyName = "language", name = "Target language", description = "Type your desired one, «ru» for russian, «fr» french and etc", section = primarySection, position = 0 )
 	default String language()
 	{
-		return "RU";
+		return "ru";
 	}
 
-	@ConfigItem( keyName = "token", name = "DeepL API Token", description = "This is REQUIRED, see www.DeepL.com", secret = true, section = primarySection, position = 1 )
+	@ConfigItem( keyName = "token", name = "DeepL API token", description = "This is REQUIRED, see www.DeepL.com", secret = true, section = primarySection, position = 1 )
 	default String token()
 	{
 		return "";
@@ -49,6 +49,12 @@ public interface PolywoofConfig extends Config
 	default boolean enableDiary()
 	{
 		return false;
+	}
+
+	@ConfigItem( keyName = "showUsage", name = "Print API usage", description = "See your monthly API usage on logon", section = behaviorSection, position = 4 )
+	default boolean showUsage()
+	{
+		return true;
 	}
 
 	@ConfigSection( name = "Font", description = "Appearance stuff", position = 2 )
@@ -108,21 +114,9 @@ public interface PolywoofConfig extends Config
 	@ConfigSection( name = "Experimental", description = "Go away", position = 5, closedByDefault = true )
 	String experimental = "experimental";
 
-	@ConfigItem( keyName = "URL", name = "URL to request", description = "Token - 1$; Text - 2$; Language - 3$", section = experimental, position = 0 )
-	default String URL()
+	@ConfigItem( keyName = "premium", name = "DeepL API Pro", description = "Use paid DeepL API instead of free", section = experimental, position = 0 )
+	default boolean premium()
 	{
-		return "https://api-free.deepl.com/v2/translate?auth_key=%1$s&text=%2$s&target_lang=%3$s&source_lang=en&preserve_formatting=1&split_sentences=1&tag_handling=html";
-	}
-
-	@ConfigItem( keyName = "jsonArray", name = "Json array key", description = "response:{ ?:[ sentence:text, sentence:text.. ] }", section = experimental, position = 1 )
-	default String jsonArray()
-	{
-		return "translations";
-	}
-
-	@ConfigItem( keyName = "jsonString", name = "Json string key", description = "response:{ array:[ sentence:?, sentence:?.. ] }", section = experimental, position = 2 )
-	default String jsonString()
-	{
-		return "text";
+		return false;
 	}
 }

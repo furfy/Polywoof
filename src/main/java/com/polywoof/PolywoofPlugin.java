@@ -2,14 +2,16 @@ package com.polywoof;
 
 import com.google.inject.Provides;
 import lombok.extern.slf4j.Slf4j;
-import net.runelite.api.Actor;
-import net.runelite.api.Client;
-import net.runelite.api.NPC;
+import net.runelite.api.*;
 import net.runelite.api.events.*;
 import net.runelite.api.widgets.Widget;
 import net.runelite.api.widgets.WidgetID;
 import net.runelite.api.widgets.WidgetInfo;
 import net.runelite.api.widgets.WidgetType;
+import net.runelite.client.chat.ChatColorType;
+import net.runelite.client.chat.ChatMessageBuilder;
+import net.runelite.client.chat.ChatMessageManager;
+import net.runelite.client.chat.QueuedMessage;
 import net.runelite.client.config.ConfigManager;
 import net.runelite.client.eventbus.Subscribe;
 import net.runelite.client.events.ConfigChanged;
@@ -22,12 +24,15 @@ import okhttp3.OkHttpClient;
 import javax.inject.Inject;
 
 @Slf4j
-@PluginDescriptor( name = "Polywoof", description = "Subtitles for almost all NPC and non-NPC text so you can understand the story", tags = { "hint", "language", "translator" } )
+@PluginDescriptor( name = "Polywoof", description = "Translation for almost all NPC and non-NPC text so you can understand the story", tags = { "hint", "language", "translator", "translation" } )
 
 public class PolywoofPlugin extends Plugin
 {
 	@Inject
 	private Client client;
+
+	@Inject
+	private ChatMessageManager chatMessageManager;
 
 	@Inject
 	private OverlayManager overlayManager;
@@ -42,12 +47,15 @@ public class PolywoofPlugin extends Plugin
 	private OkHttpClient okHttpClient;
 
 	private int dialog;
+	private boolean notify;
 	private String previous;
 	private PolywoofTranslator translator;
 
 	@Override
 	protected void startUp() throws Exception
 	{
+		notify = true;
+
 		update(true);
 		polywoofOverlay.update();
 		overlayManager.add(polywoofOverlay);
@@ -65,9 +73,7 @@ public class PolywoofPlugin extends Plugin
 		switch (configChanged.getKey())
 		{
 			case ("token"):
-			case ("URL"):
-			case ("jsonArray"):
-			case ("jsonString"):
+			case ("premium"):
 				update(true);
 				break;
 			case ("overlayPosition"):
@@ -77,6 +83,29 @@ public class PolywoofPlugin extends Plugin
 			case ("fontSize"):
 				polywoofOverlay.update();
 				break;
+		}
+	}
+
+	@Subscribe
+	public void onGameStateChanged(GameStateChanged gameStateChanged)
+	{
+		if(config.showUsage() && gameStateChanged.getGameState() == GameState.LOGGED_IN && notify)
+		{
+			translator.usage((character_count, character_limit) ->
+			{
+				String message = new ChatMessageBuilder()
+						.append(ChatColorType.NORMAL)
+						.append("Your current DeepL API usage is ")
+						.append(ChatColorType.HIGHLIGHT)
+						.append(Math.round(100f * ((float)character_count / character_limit)) + "%")
+						.append(ChatColorType.NORMAL)
+						.append(" of monthly quota!")
+						.build();
+
+				chatMessageManager.queue(QueuedMessage.builder().type(ChatMessageType.CONSOLE).runeLiteFormattedMessage(message).build());
+			});
+
+			notify = false;
 		}
 	}
 
@@ -96,8 +125,6 @@ public class PolywoofPlugin extends Plugin
 				text = chatMessage.getMessage();
 				source = "Examine";
 				break;
-			case CONSOLE:
-			case ENGINE:
 			case GAMEMESSAGE:
 				text = chatMessage.getMessage();
 				source = "Game";
@@ -262,7 +289,7 @@ public class PolywoofPlugin extends Plugin
 		translator.translate(translator.stripTags(text), config.language(), target ->
 		{
 			polywoofOverlay.vanish(1);
-			polywoofOverlay.set(1, (config.sourceName() ? translator.stripTags(source) + config.sourceSeparator() : "") + target);
+			polywoofOverlay.set(1, (source != null && config.sourceName() ? translator.stripTags(source) + config.sourceSeparator() : "") + target);
 		});
 	}
 
@@ -277,6 +304,6 @@ public class PolywoofPlugin extends Plugin
 		polywoofOverlay.setLayer(OverlayLayer.ALWAYS_ON_TOP);
 		polywoofOverlay.setPosition(config.overlayPosition());
 
-		if(token) translator = new PolywoofTranslator(config.URL(), config.token(), config.jsonArray(), config.jsonString(), okHttpClient);
+		if(token) translator = new PolywoofTranslator(okHttpClient, config.token(), config.premium());
 	}
 }

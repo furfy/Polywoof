@@ -4,10 +4,11 @@ import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import lombok.extern.slf4j.Slf4j;
+import net.runelite.client.RuneLite;
 import okhttp3.*;
+import okhttp3.internal.annotations.EverythingIsNonNull;
 
 import java.io.IOException;
-import java.net.URLEncoder;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -15,70 +16,153 @@ import java.util.Map;
 
 public class PolywoofTranslator
 {
-    private final String url;
+    private final String URL;
     private final String token;
-    private final String jsonArray;
-    private final String jsonString;
-
     private final OkHttpClient client;
-
     private static final Map<String, Map<String, String>> cache = new HashMap<>();
 
-    interface Translation
+    interface Translate
     {
-        void translation(String target);
+        void translate(String text);
     }
 
-    public PolywoofTranslator(String url, String token, String jsonArray, String jsonString, OkHttpClient client)
+    interface Usage
+    {
+        void usage(long character_count, long character_limit);
+    }
+
+    public PolywoofTranslator(OkHttpClient client, String token, boolean premium)
     {
         this.client = client;
-        this.url = url;
         this.token = token;
-        this.jsonArray = jsonArray;
-        this.jsonString = jsonString;
+
+        URL = premium ? "https://api.deepl.com" : "https://api-free.deepl.com";
     }
 
-    public void translate(String origin, String target, Translation callback)
+    private void post(String path, RequestBody body, Callback callback) throws IOException
     {
-        if(token.isEmpty()) return;
+        if(!token.endsWith(":fx")) return;
 
-        if(cache.containsKey(origin) && cache.get(origin).containsKey(target))
+        Request request = new Request.Builder()
+                .addHeader("User-Agent", RuneLite.USER_AGENT + " (polywoof)")
+                .addHeader("Authorization", "DeepL-Auth-Key " + token)
+                .addHeader("Accept", "application/json")
+                .addHeader("Content-Type", "application/x-www-form-urlencoded")
+                .addHeader("Content-Length", String.valueOf(body.contentLength()))
+                .url(URL + path).post(body).build();
+
+        client.newCall(request).enqueue(callback);
+    }
+
+    private void handleError(int code) throws IOException
+    {
+        switch (code)
         {
-            callback.translation(cache.get(origin).get(target));
+            case 200:
+                return;
+            case 400:
+                throw new IOException("Bad request");
+            case 403:
+                throw new IOException("Authorization failed");
+            case 404:
+                throw new IOException("The requested resource could not be found");
+            case 413:
+                throw new IOException("The request size exceeds the limit");
+            case 414:
+                throw new IOException("The request URL is too long");
+            case 429:
+                throw new IOException("Too many requests");
+            case 456:
+                throw new IOException("Quota exceeded");
+            case 503:
+                throw new IOException("Resource currently unavailable");
+            default:
+                throw new IOException("Internal error");
+        }
+    }
+
+    public void translate(String text, String target_lang, Translate callback)
+    {
+        if(cache.containsKey(text) && cache.get(text).containsKey(target_lang))
+        {
+            callback.translate(cache.get(text).get(target_lang));
             return;
         }
 
         try
         {
-            Request request = new Request.Builder().url(String.format(url, URLEncoder.encode(token, "UTF-8"), URLEncoder.encode(origin, "UTF-8"), URLEncoder.encode(target, "UTF-8"))).build();
-            Call call = client.newCall(request);
+            RequestBody body = new FormBody.Builder()
+                    .add("text", text)
+                    .add("target_lang", target_lang)
+                    .add("source_lang", "en")
+                    .add("preserve_formatting", "1")
+                    .add("tag_handling", "html")
+                    .add("non_splitting_tags", "br")
+                    .build();
 
-            call.enqueue(new Callback()
+            post("/v2/translate", body, new Callback()
             {
                 @Override
+                @EverythingIsNonNull
                 public void onFailure(Call call, IOException error)
                 {
                     error.printStackTrace();
                 }
 
                 @Override
+                @EverythingIsNonNull
                 public void onResponse(Call call, Response response) throws IOException
                 {
+                    handleError(response.code());
+
                     JsonParser parser = new JsonParser();
                     JsonElement root = parser.parse(response.body().string());
                     JsonObject json = root.getAsJsonObject();
 
                     StringBuilder output = new StringBuilder();
 
-                    for(JsonElement element : json.getAsJsonArray(jsonArray))
+                    for(JsonElement element : json.getAsJsonArray("translations"))
                     {
-                        output.append(element.getAsJsonObject().get(jsonString).getAsString());
+                        output.append(element.getAsJsonObject().get("text").getAsString());
                     }
 
-                    if(!cache.containsKey(origin)) cache.put(origin, new HashMap<>());
+                    if(!cache.containsKey(text)) cache.put(text, new HashMap<>());
+                    cache.get(text).put(target_lang, output.toString());
 
-                    cache.get(origin).put(target, output.toString());
-                    callback.translation(cache.get(origin).get(target));
+                    callback.translate(cache.get(text).get(target_lang));
+                }
+            });
+        }
+        catch (IOException error)
+        {
+            error.printStackTrace();
+        }
+    }
+
+    public void usage(Usage callback)
+    {
+        try
+        {
+            post("/v2/usage", new FormBody.Builder().build(), new Callback()
+            {
+                @Override
+                @EverythingIsNonNull
+                public void onFailure(Call call, IOException error)
+                {
+                    error.printStackTrace();
+                }
+
+                @Override
+                @EverythingIsNonNull
+                public void onResponse(Call call, Response response) throws IOException
+                {
+                    handleError(response.code());
+
+                    JsonParser parser = new JsonParser();
+                    JsonElement root = parser.parse(response.body().string());
+                    JsonObject json = root.getAsJsonObject();
+
+                    callback.usage(json.get("character_count").getAsLong(), json.get("character_limit").getAsLong());
                 }
             });
         }
