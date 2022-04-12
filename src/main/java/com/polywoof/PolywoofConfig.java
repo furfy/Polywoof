@@ -11,7 +11,7 @@ public interface PolywoofConfig extends Config
 	@ConfigSection( name = "Primary", description = "General stuff", position = 0 )
 	String primarySection = "primarySection";
 
-	@ConfigItem( keyName = "language", name = "Target language", description = "Type your desired one, «ru» for russian, «fr» french and etc", section = primarySection, position = 0 )
+	@ConfigItem( keyName = "language", name = "Target language", description = "Type your desired one, «ru» for russian, «fr» french, etc", section = primarySection, position = 0 )
 	default String language()
 	{
 		return "ru";
@@ -45,7 +45,7 @@ public interface PolywoofConfig extends Config
 		return false;
 	}
 
-	@ConfigItem( keyName = "enableDiary", name = "Diary and clues", description = "Translate diary and clues", section = behaviorSection, position = 3 )
+	@ConfigItem( keyName = "enableDiary", name = "Diary and clues", description = "Translate diary and clues", warning = "It will use a lot of resources to translate!\nMake sure you absolutely need it.", section = behaviorSection, position = 3 )
 	default boolean enableDiary()
 	{
 		return false;
@@ -83,7 +83,7 @@ public interface PolywoofConfig extends Config
 	}
 
 	@Alpha
-	@ConfigItem( keyName = "overlayColor", name = "Background color", description = "Background color for subtitles", section = visualSection, position = 1 )
+	@ConfigItem( keyName = "overlayColor", name = "Background color", description = "Any color is acceptable", section = visualSection, position = 1 )
 	default Color overlayColor()
 	{
 		return new Color(32, 32, 32, 128);
@@ -109,14 +109,5 @@ public interface PolywoofConfig extends Config
 	default String sourceSeparator()
 	{
 		return ": ";
-	}
-
-	@ConfigSection( name = "Experimental", description = "Go away", position = 5, closedByDefault = true )
-	String experimental = "experimental";
-
-	@ConfigItem( keyName = "premium", name = "DeepL API Pro", description = "Use paid DeepL API instead of free", section = experimental, position = 0 )
-	default boolean premium()
-	{
-		return false;
 	}
 }

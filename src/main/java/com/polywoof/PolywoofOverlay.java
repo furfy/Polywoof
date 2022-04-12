@@ -18,8 +18,8 @@ public class PolywoofOverlay extends Overlay
     private PolywoofConfig config;
 
     private Font font;
-    private final Map<Integer, String> permament = new LinkedHashMap<>();
-    private final Map<Long, String> subtitles = new LinkedHashMap<>();
+    private final Map<Integer, String> permanent = new LinkedHashMap<>();
+    private final Map<Long, String> temporary = new LinkedHashMap<>();
 
     public enum TextAlignment
     {
@@ -37,12 +37,12 @@ public class PolywoofOverlay extends Overlay
 
         Map<Long, String> copy = new LinkedHashMap<>();
 
-        for(Map.Entry<Integer, String> subtitle : permament.entrySet())
+        for(Map.Entry<Integer, String> subtitle : permanent.entrySet())
         {
             copy.put(0L, subtitle.getValue());
         }
 
-        copy.putAll(subtitles);
+        copy.putAll(temporary);
 
         for(Map.Entry<Long, String> subtitle : copy.entrySet())
         {
@@ -54,7 +54,7 @@ public class PolywoofOverlay extends Overlay
 
                 if(difference == 0)
                 {
-                    subtitles.remove(subtitle.getKey());
+                    temporary.remove(subtitle.getKey());
                     continue;
                 }
 
@@ -85,20 +85,20 @@ public class PolywoofOverlay extends Overlay
 
     public void put(String text)
     {
-        if(text.length() > 0) subtitles.put(2000L + System.currentTimeMillis() + (long)(1000f * text.length() * (1f / config.readingSpeed())), text);
+        if(text.length() > 0) temporary.put(2000L + System.currentTimeMillis() + (long)(1000f * text.length() * (1f / config.readingSpeed())), text);
     }
 
     public void set(Integer id, String text)
     {
-        if(text.length() > 0) permament.put(id, text);
+        if(text.length() > 0) permanent.put(id, text);
     }
 
     public void vanish(Integer id)
     {
-        if(permament.containsKey(id))
+        if(permanent.containsKey(id))
         {
-            subtitles.put(System.currentTimeMillis() + 1500, permament.get(id));
-            permament.remove(id);
+            temporary.put(System.currentTimeMillis() + 1500, permanent.get(id));
+            permanent.remove(id);
         }
     }
 

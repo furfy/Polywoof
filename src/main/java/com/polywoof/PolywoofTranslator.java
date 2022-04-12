@@ -7,6 +7,7 @@ import lombok.extern.slf4j.Slf4j;
 import net.runelite.client.RuneLite;
 import okhttp3.*;
 import okhttp3.internal.annotations.EverythingIsNonNull;
+import org.apache.commons.text.StringEscapeUtils;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -31,17 +32,17 @@ public class PolywoofTranslator
         void usage(long character_count, long character_limit);
     }
 
-    public PolywoofTranslator(OkHttpClient client, String token, boolean premium)
+    public PolywoofTranslator(OkHttpClient client, String token)
     {
         this.client = client;
         this.token = token;
 
-        URL = premium ? "https://api.deepl.com" : "https://api-free.deepl.com";
+        URL = token.endsWith(":fx") ? "https://api-free.deepl.com" : "https://api.deepl.com";
     }
 
     private void post(String path, RequestBody body, Callback callback) throws IOException
     {
-        if(!token.endsWith(":fx")) return;
+        if(token.length() == 0) return;
 
         Request request = new Request.Builder()
                 .addHeader("User-Agent", RuneLite.USER_AGENT + " (polywoof)")
@@ -123,7 +124,7 @@ public class PolywoofTranslator
 
                     for(JsonElement element : json.getAsJsonArray("translations"))
                     {
-                        output.append(element.getAsJsonObject().get("text").getAsString());
+                        output.append(StringEscapeUtils.escapeHtml4(element.getAsJsonObject().get("text").getAsString()));
                     }
 
                     if(!cache.containsKey(text)) cache.put(text, new HashMap<>());

@@ -47,15 +47,13 @@ public class PolywoofPlugin extends Plugin
 	private OkHttpClient okHttpClient;
 
 	private int dialog;
-	private boolean notify;
+	private boolean notify = true;
 	private String previous;
 	private PolywoofTranslator translator;
 
 	@Override
 	protected void startUp() throws Exception
 	{
-		notify = true;
-
 		update(true);
 		polywoofOverlay.update();
 		overlayManager.add(polywoofOverlay);
@@ -73,15 +71,17 @@ public class PolywoofPlugin extends Plugin
 		switch (configChanged.getKey())
 		{
 			case ("token"):
-			case ("premium"):
 				update(true);
 				break;
-			case ("overlayPosition"):
-				update(false);
+			case ("showUsage"):
+				notify = true;
 				break;
 			case ("fontName"):
 			case ("fontSize"):
 				polywoofOverlay.update();
+				break;
+			case ("overlayPosition"):
+				update(false);
 				break;
 		}
 	}
@@ -112,8 +112,6 @@ public class PolywoofPlugin extends Plugin
 	@Subscribe
 	public void onChatMessage(ChatMessage chatMessage)
 	{
-		if(!config.enableChat()) return;
-
 		String text;
 		String source;
 
@@ -126,12 +124,10 @@ public class PolywoofPlugin extends Plugin
 				source = "Examine";
 				break;
 			case GAMEMESSAGE:
+				if(!config.enableChat()) return;
+
 				text = chatMessage.getMessage();
 				source = "Game";
-				break;
-			case PLAYERRELATED:
-				text = chatMessage.getMessage();
-				source = chatMessage.getName();
 				break;
 			default:
 				return;
@@ -238,10 +234,7 @@ public class PolywoofPlugin extends Plugin
 
 				for(Widget option : widgetOptions.getChildren())
 				{
-					if(option.getType() == WidgetType.TEXT)
-					{
-						options.append(++index == 0 ? "" : index + ". ").append(option.getText()).append("\n");
-					}
+					if(option.getType() == WidgetType.TEXT) options.append(++index == 0 ? "" : index + ". ").append(option.getText()).append("\n");
 				}
 
 				text = options.toString();
@@ -259,10 +252,7 @@ public class PolywoofPlugin extends Plugin
 
 				for(Widget line : widgetDiaryText.getStaticChildren())
 				{
-					if(line.getType() == WidgetType.TEXT)
-					{
-						diary.append(line.getText()).append(" ");
-					}
+					if(line.getType() == WidgetType.TEXT) diary.append(line.getText()).append(" ");
 				}
 
 				text = diary.toString();
@@ -304,6 +294,6 @@ public class PolywoofPlugin extends Plugin
 		polywoofOverlay.setLayer(OverlayLayer.ALWAYS_ON_TOP);
 		polywoofOverlay.setPosition(config.overlayPosition());
 
-		if(token) translator = new PolywoofTranslator(okHttpClient, config.token(), config.premium());
+		if(token) translator = new PolywoofTranslator(okHttpClient, config.token());
 	}
 }
