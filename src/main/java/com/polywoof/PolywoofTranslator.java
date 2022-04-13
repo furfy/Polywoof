@@ -84,6 +84,8 @@ public class PolywoofTranslator
 
     public void translate(String text, String target_lang, Translate callback)
     {
+        if(text.length() == 0 || target_lang.length() == 0) return;
+
         if(cache.containsKey(text) && cache.get(text).containsKey(target_lang))
         {
             callback.translate(cache.get(text).get(target_lang));
@@ -124,7 +126,7 @@ public class PolywoofTranslator
 
                     for(JsonElement element : json.getAsJsonArray("translations"))
                     {
-                        output.append(StringEscapeUtils.escapeHtml4(element.getAsJsonObject().get("text").getAsString()));
+                        output.append(StringEscapeUtils.unescapeHtml4(element.getAsJsonObject().get("text").getAsString()));
                     }
 
                     if(!cache.containsKey(text)) cache.put(text, new HashMap<>());
@@ -175,6 +177,6 @@ public class PolywoofTranslator
 
     public String stripTags(String text)
     {
-        return text.replaceAll("<br>", " ").replaceAll("<.*?>", "");
+        return text.replaceAll("[ ]*<br>[ ]*", " ").replaceAll("<.*?>", "");
     }
 }

@@ -135,7 +135,7 @@ public class PolywoofPlugin extends Plugin
 
 		translator.translate(translator.stripTags(text), config.language(), target ->
 		{
-			polywoofOverlay.put((config.sourceName() ? source + config.sourceSeparator() : "") + target);
+			polywoofOverlay.put((config.sourceName() ? translator.stripTags(source) + config.sourceSeparator() : "") + target);
 		});
 	}
 
@@ -163,12 +163,13 @@ public class PolywoofPlugin extends Plugin
 	{
 		switch (widgetLoaded.getGroupId())
 		{
-			case (WidgetID.DIALOG_NPC_GROUP_ID):
-			case (WidgetID.DIALOG_PLAYER_GROUP_ID):
-			case (WidgetID.DIALOG_SPRITE_GROUP_ID):
-			case (WidgetID.DIALOG_OPTION_GROUP_ID):
-			case (WidgetID.DIARY_QUEST_GROUP_ID):
-			case (WidgetID.CLUE_SCROLL_GROUP_ID):
+			case WidgetID.DIALOG_NPC_GROUP_ID:
+			case WidgetID.DIALOG_PLAYER_GROUP_ID:
+			case WidgetID.DIALOG_SPRITE_GROUP_ID:
+			case WidgetID.DIALOG_OPTION_GROUP_ID:
+			case WidgetID.DIARY_QUEST_GROUP_ID:
+			case WidgetID.CLUE_SCROLL_GROUP_ID:
+			case 229:
 				dialog = widgetLoaded.getGroupId();
 				break;
 		}
@@ -179,12 +180,13 @@ public class PolywoofPlugin extends Plugin
 	{
 		switch (widgetClosed.getGroupId())
 		{
-			case (WidgetID.DIALOG_NPC_GROUP_ID):
-			case (WidgetID.DIALOG_PLAYER_GROUP_ID):
-			case (WidgetID.DIALOG_SPRITE_GROUP_ID):
-			case (WidgetID.DIALOG_OPTION_GROUP_ID):
-			case (WidgetID.DIARY_QUEST_GROUP_ID):
-			case (WidgetID.CLUE_SCROLL_GROUP_ID):
+			case WidgetID.DIALOG_NPC_GROUP_ID:
+			case WidgetID.DIALOG_PLAYER_GROUP_ID:
+			case WidgetID.DIALOG_SPRITE_GROUP_ID:
+			case WidgetID.DIALOG_OPTION_GROUP_ID:
+			case WidgetID.DIARY_QUEST_GROUP_ID:
+			case WidgetID.CLUE_SCROLL_GROUP_ID:
+			case 229:
 				dialog = 0;
 				break;
 		}
@@ -198,7 +200,7 @@ public class PolywoofPlugin extends Plugin
 
 		switch (dialog)
 		{
-			case (WidgetID.DIALOG_NPC_GROUP_ID):
+			case WidgetID.DIALOG_NPC_GROUP_ID:
 				Widget widgetNPCName = client.getWidget(WidgetInfo.DIALOG_NPC_NAME);
 				Widget widgetNPCText = client.getWidget(WidgetInfo.DIALOG_NPC_TEXT);
 
@@ -207,16 +209,16 @@ public class PolywoofPlugin extends Plugin
 				text = widgetNPCText.getText();
 				source = widgetNPCName.getText();
 				break;
-			case (WidgetID.DIALOG_PLAYER_GROUP_ID):
-				Actor player = client.getLocalPlayer();
+			case WidgetID.DIALOG_PLAYER_GROUP_ID:
+				Widget widgetPlayerName = client.getWidget(dialog, 4);
 				Widget widgetPlayerText = client.getWidget(WidgetInfo.DIALOG_PLAYER_TEXT);
 
-				if(player == null || widgetPlayerText == null) return;
+				if(widgetPlayerName == null || widgetPlayerText == null) return;
 
 				text = widgetPlayerText.getText();
-				source = player.getName();
+				source = widgetPlayerName.getText();
 				break;
-			case (WidgetID.DIALOG_SPRITE_GROUP_ID):
+			case WidgetID.DIALOG_SPRITE_GROUP_ID:
 				Widget widgetSpriteText = client.getWidget(WidgetInfo.DIALOG_SPRITE_TEXT);
 
 				if(widgetSpriteText == null) return;
@@ -224,15 +226,15 @@ public class PolywoofPlugin extends Plugin
 				text = widgetSpriteText.getText();
 				source = "Game";
 				break;
-			case (WidgetID.DIALOG_OPTION_GROUP_ID):
+			case WidgetID.DIALOG_OPTION_GROUP_ID:
 				Widget widgetOptions = client.getWidget(WidgetInfo.DIALOG_OPTION_OPTIONS);
 
-				if(widgetOptions == null || widgetOptions.getChildren() == null) return;
+				if(widgetOptions == null) return;
 
 				int index = -1;
 				StringBuilder options = new StringBuilder();
 
-				for(Widget option : widgetOptions.getChildren())
+				for(Widget option : widgetOptions.getDynamicChildren())
 				{
 					if(option.getType() == WidgetType.TEXT) options.append(++index == 0 ? "" : index + ". ").append(option.getText()).append("\n");
 				}
@@ -240,13 +242,13 @@ public class PolywoofPlugin extends Plugin
 				text = options.toString();
 				source = "Options";
 				break;
-			case (WidgetID.DIARY_QUEST_GROUP_ID):
+			case WidgetID.DIARY_QUEST_GROUP_ID:
 				if(!config.enableDiary()) return;
 
 				Widget widgetDiaryTitle = client.getWidget(WidgetInfo.DIARY_QUEST_WIDGET_TITLE);
 				Widget widgetDiaryText = client.getWidget(WidgetInfo.DIARY_QUEST_WIDGET_TEXT);
 
-				if(widgetDiaryTitle == null || widgetDiaryText == null || widgetDiaryText.getStaticChildren() == null) return;
+				if(widgetDiaryTitle == null || widgetDiaryText == null) return;
 
 				StringBuilder diary = new StringBuilder();
 
@@ -258,7 +260,7 @@ public class PolywoofPlugin extends Plugin
 				text = diary.toString();
 				source = widgetDiaryTitle.getText();
 				break;
-			case (WidgetID.CLUE_SCROLL_GROUP_ID):
+			case WidgetID.CLUE_SCROLL_GROUP_ID:
 				if(!config.enableDiary()) return;
 
 				Widget widgetClueText = client.getWidget(WidgetInfo.CLUE_SCROLL_TEXT);
@@ -267,6 +269,14 @@ public class PolywoofPlugin extends Plugin
 
 				text = widgetClueText.getText();
 				source = "Clue";
+				break;
+			case 229:
+				Widget widget = client.getWidget(dialog, 1);
+
+				if(widget == null) return;
+
+				text = widget.getText();
+				source = "Game";
 				break;
 			default:
 				previous = null;
@@ -279,7 +289,7 @@ public class PolywoofPlugin extends Plugin
 		translator.translate(translator.stripTags(text), config.language(), target ->
 		{
 			polywoofOverlay.vanish(1);
-			polywoofOverlay.set(1, (source != null && config.sourceName() ? translator.stripTags(source) + config.sourceSeparator() : "") + target);
+			polywoofOverlay.set(1, (config.sourceName() ? translator.stripTags(source) + config.sourceSeparator() : "") + target);
 		});
 	}
 
