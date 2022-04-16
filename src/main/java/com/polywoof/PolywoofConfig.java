@@ -8,10 +8,24 @@ import java.awt.*;
 @ConfigGroup("polywoof")
 public interface PolywoofConfig extends Config
 {
+	String warning = "It will use a lot of resources to translate! Are you sure?";
+
 	@ConfigSection( name = "Primary", description = "Primary stuff", position = 0 )
 	String primarySection = "primarySection";
 
-	@ConfigItem( keyName = "language", name = "Target Language", description = "Type your desired one, «ru» for russian, «fr» french, etc", section = primarySection, position = 0 )
+	@ConfigSection( name = "Behavior", description = "Behavior stuff", position = 1 )
+	String behaviorSection = "behaviorSection";
+
+	@ConfigSection( name = "Font", description = "Font appearance stuff", position = 2 )
+	String fontSection = "fontSection";
+
+	@ConfigSection( name = "Visual", description = "Visual appearance stuff", position = 3 )
+	String visualSection = "visualSection";
+
+	@ConfigSection( name = "Formatting", description = "Text formatting stuff", position = 4 )
+	String formatSection = "formatSection";
+
+	@ConfigItem( keyName = "language", name = "Target Language Code", description = "Type your desired one, «ru» for russian, «fr» french, etc", section = primarySection, position = 0 )
 	default String language()
 	{
 		return "ru";
@@ -23,9 +37,6 @@ public interface PolywoofConfig extends Config
 		return "";
 	}
 
-	@ConfigSection( name = "Behavior", description = "Behavior stuff", position = 1 )
-	String behaviorSection = "behaviorSection";
-
 	@Range( min = 1, max = 99 )
 	@ConfigItem( keyName = "readingSpeed", name = "Reading Speed", description = "How quickly do you read", section = behaviorSection, position = 0 )
 	default int readingSpeed()
@@ -33,32 +44,47 @@ public interface PolywoofConfig extends Config
 		return 10;
 	}
 
-	@ConfigItem( keyName = "enableChat", name = "Chat Messages", description = "Translate chat messages", section = behaviorSection, position = 1 )
+	@ConfigItem( keyName = "enableExamine", name = "Any Examine", description = "Translate any examine", section = behaviorSection, position = 1 )
+	default boolean enableExamine()
+	{
+		return true;
+	}
+
+	@ConfigItem( keyName = "enableChat", name = "Chat Messages", description = "Translate chat messages", section = behaviorSection, position = 2 )
 	default boolean enableChat()
 	{
-		return false;
+		return true;
 	}
 
-	@ConfigItem( keyName = "enableOverhead", name = "Overhead Text", description = "Translate overhead text", section = behaviorSection, position = 2 )
+	@ConfigItem( keyName = "enableOverhead", name = "Overhead Text", description = "Translate overhead text", section = behaviorSection, position = 3 )
 	default boolean enableOverhead()
+	{
+		return true;
+	}
+
+	@ConfigItem( keyName = "enableClues", name = "Treasure Clues", description = "Translate treasure clues", section = behaviorSection, position = 4 )
+	default boolean enableClues()
 	{
 		return false;
 	}
 
-	@ConfigItem( keyName = "enableDiary", name = "Diary and Clues", description = "Translate diary and clues", warning = "It will use a lot of resources to translate!\nMake sure you absolutely need it.", section = behaviorSection, position = 3 )
+	@ConfigItem( keyName = "enableDiary", name = "Quests Diary", description = "Translate quests diary", warning = warning, section = behaviorSection, position = 5 )
 	default boolean enableDiary()
 	{
 		return false;
 	}
 
-	@ConfigItem( keyName = "showUsage", name = "Print API Usage", description = "See your monthly API usage on logon", section = behaviorSection, position = 4 )
+	@ConfigItem( keyName = "enableBooks", name = "Book Pages", description = "Translate book pages", warning = warning, section = behaviorSection, position = 6 )
+	default boolean enableBooks()
+	{
+		return false;
+	}
+
+	@ConfigItem( keyName = "showUsage", name = "Print API Usage", description = "See your monthly API usage on logon", section = behaviorSection, position = 7 )
 	default boolean showUsage()
 	{
 		return true;
 	}
-
-	@ConfigSection( name = "Font", description = "Font appearance stuff", position = 2 )
-	String fontSection = "fontSection";
 
 	@ConfigItem( keyName = "fontName", name = "Font Name", description = "Checkout your fonts viewer", section = fontSection, position = 0 )
 	default String fontName()
@@ -73,9 +99,6 @@ public interface PolywoofConfig extends Config
 		return 12;
 	}
 
-	@ConfigSection( name = "Visual", description = "Visual appearance stuff", position = 3 )
-	String visualSection = "visualSection";
-
 	@ConfigItem( keyName = "overlayPosition", name = "Position on Screen", description = "Put the thing where it belongs", section = visualSection, position = 0 )
 	default OverlayPosition overlayPosition()
 	{
@@ -88,9 +111,6 @@ public interface PolywoofConfig extends Config
 	{
 		return new Color(32, 32, 32, 128);
 	}
-
-	@ConfigSection( name = "Formatting", description = "Text formatting stuff", position = 4 )
-	String formatSection = "formatSection";
 
 	@Range( min = 32 )
 	@ConfigItem( keyName = "wrapWidth", name = "Text Wrap Width", description = "Widest text ever", section = formatSection, position = 0 )

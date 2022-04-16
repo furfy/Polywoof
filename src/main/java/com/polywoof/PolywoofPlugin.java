@@ -19,6 +19,7 @@ import net.runelite.client.plugins.Plugin;
 import net.runelite.client.plugins.PluginDescriptor;
 import net.runelite.client.ui.overlay.OverlayLayer;
 import net.runelite.client.ui.overlay.OverlayManager;
+import net.runelite.client.ui.overlay.OverlayPriority;
 import okhttp3.OkHttpClient;
 
 import javax.inject.Inject;
@@ -48,7 +49,7 @@ public class PolywoofPlugin extends Plugin
 
 	private int dialog;
 	private boolean notify = true;
-	private String previous;
+	private String previous = null;
 	private PolywoofTranslator translator;
 
 	@Override
@@ -68,6 +69,8 @@ public class PolywoofPlugin extends Plugin
 	@Subscribe
 	public void onConfigChanged(ConfigChanged configChanged)
 	{
+		if(!configChanged.getGroup().equals("polywoof")) return;
+
 		switch (configChanged.getKey())
 		{
 			case ("token"):
@@ -91,6 +94,8 @@ public class PolywoofPlugin extends Plugin
 	{
 		if(config.showUsage() && gameStateChanged.getGameState() == GameState.LOGGED_IN && notify)
 		{
+			notify = false;
+
 			translator.usage((character_count, character_limit) ->
 			{
 				String message = new ChatMessageBuilder()
@@ -104,8 +109,6 @@ public class PolywoofPlugin extends Plugin
 
 				chatMessageManager.queue(QueuedMessage.builder().type(ChatMessageType.CONSOLE).runeLiteFormattedMessage(message).build());
 			});
-
-			notify = false;
 		}
 	}
 
@@ -120,6 +123,8 @@ public class PolywoofPlugin extends Plugin
 			case NPC_EXAMINE:
 			case ITEM_EXAMINE:
 			case OBJECT_EXAMINE:
+				if(!config.enableExamine()) return;
+
 				text = chatMessage.getMessage();
 				source = "Examine";
 				break;
@@ -158,6 +163,12 @@ public class PolywoofPlugin extends Plugin
 		}
 	}
 
+	/*
+		222 - Scroll text
+		229 - Simple dialog
+		392 - Book
+	 */
+
 	@Subscribe
 	public void onWidgetLoaded(WidgetLoaded widgetLoaded)
 	{
@@ -170,6 +181,7 @@ public class PolywoofPlugin extends Plugin
 			case WidgetID.DIARY_QUEST_GROUP_ID:
 			case WidgetID.CLUE_SCROLL_GROUP_ID:
 			case 229:
+			case 392:
 				dialog = widgetLoaded.getGroupId();
 				break;
 		}
@@ -187,6 +199,7 @@ public class PolywoofPlugin extends Plugin
 			case WidgetID.DIARY_QUEST_GROUP_ID:
 			case WidgetID.CLUE_SCROLL_GROUP_ID:
 			case 229:
+			case 392:
 				dialog = 0;
 				break;
 		}
@@ -234,9 +247,9 @@ public class PolywoofPlugin extends Plugin
 				int index = -1;
 				StringBuilder options = new StringBuilder();
 
-				for(Widget option : widgetOptions.getDynamicChildren())
+				for(Widget children : widgetOptions.getDynamicChildren())
 				{
-					if(option.getType() == WidgetType.TEXT) options.append(++index == 0 ? "" : index + ". ").append(option.getText()).append("\n");
+					if(children.getType() == WidgetType.TEXT && children.getText().length() > 0) options.append(++index == 0 ? "" : index + ". ").append(children.getText()).append("\n");
 				}
 
 				text = options.toString();
@@ -252,16 +265,16 @@ public class PolywoofPlugin extends Plugin
 
 				StringBuilder diary = new StringBuilder();
 
-				for(Widget line : widgetDiaryText.getStaticChildren())
+				for(Widget children : widgetDiaryText.getStaticChildren())
 				{
-					if(line.getType() == WidgetType.TEXT) diary.append(line.getText()).append(" ");
+					if(children.getType() == WidgetType.TEXT && children.getText().length() > 0) diary.append(children.getText()).append(" ");
 				}
 
 				text = diary.toString();
 				source = widgetDiaryTitle.getText();
 				break;
 			case WidgetID.CLUE_SCROLL_GROUP_ID:
-				if(!config.enableDiary()) return;
+				if(!config.enableClues()) return;
 
 				Widget widgetClueText = client.getWidget(WidgetInfo.CLUE_SCROLL_TEXT);
 
@@ -278,8 +291,32 @@ public class PolywoofPlugin extends Plugin
 				text = widget.getText();
 				source = "Game";
 				break;
+			case 392:
+				if(!config.enableBooks()) return;
+
+				Widget widgetBookName = client.getWidget(dialog, 6);
+				Widget widgetBookPage1 = client.getWidget(dialog, 43);
+				Widget widgetBookPage2 = client.getWidget(dialog, 59);
+
+				if(widgetBookName == null || widgetBookPage1 == null || widgetBookPage2 == null) return;
+
+				Widget[] pages = { widgetBookPage1, widgetBookPage2 };
+				StringBuilder book = new StringBuilder();
+
+				for(Widget page : pages)
+				{
+					for(Widget children : page.getStaticChildren())
+					{
+						if(children.getType() == WidgetType.TEXT && children.getText().length() > 0) book.append(children.getText()).append(" ");
+					}
+				}
+
+				text = book.toString();
+				source = widgetBookName.getText();
+				break;
 			default:
 				previous = null;
+
 				polywoofOverlay.vanish(1);
 				return;
 		}
@@ -301,8 +338,9 @@ public class PolywoofPlugin extends Plugin
 
 	public void update(boolean token)
 	{
-		polywoofOverlay.setLayer(OverlayLayer.ALWAYS_ON_TOP);
+		polywoofOverlay.setLayer(OverlayLayer.ABOVE_WIDGETS);
 		polywoofOverlay.setPosition(config.overlayPosition());
+		polywoofOverlay.setPriority(OverlayPriority.LOW);
 
 		if(token) translator = new PolywoofTranslator(okHttpClient, config.token());
 	}
