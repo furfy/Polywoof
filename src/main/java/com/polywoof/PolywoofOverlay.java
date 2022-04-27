@@ -56,23 +56,22 @@ public class PolywoofOverlay extends Overlay
 			switch (getPosition())
 			{
 				case TOP_LEFT:
-					offset += draw(graphics, subtitle.getValue(), font, 10, 10 + offset, alpha, TextAlignment.TOP_LEFT) + spacing;
+					offset += draw(graphics, subtitle.getValue(), 10, 10 + offset, alpha, TextAlignment.TOP_LEFT) + spacing;
 					break;
 				case TOP_CENTER:
-					offset += draw(graphics, subtitle.getValue(), font, 0, 10 + offset, alpha, TextAlignment.TOP_CENTER) + spacing;
+					offset += draw(graphics, subtitle.getValue(), 0, 10 + offset, alpha, TextAlignment.TOP_CENTER) + spacing;
 					break;
 				case TOP_RIGHT:
-				case CANVAS_TOP_RIGHT:
-					offset += draw(graphics, subtitle.getValue(), font, -10, 10 + offset, alpha, TextAlignment.TOP_RIGHT) + spacing;
+					offset += draw(graphics, subtitle.getValue(), -10, 10 + offset, alpha, TextAlignment.TOP_RIGHT) + spacing;
 					break;
 				case BOTTOM_LEFT:
-					offset -= draw(graphics, subtitle.getValue(), font, 10, offset - 10, alpha, TextAlignment.BOTTOM_LEFT) + spacing;
+					offset -= draw(graphics, subtitle.getValue(), 10, offset - 10, alpha, TextAlignment.BOTTOM_LEFT) + spacing;
 					break;
 				case ABOVE_CHATBOX_RIGHT:
-					offset -= draw(graphics, subtitle.getValue(), font, 0, offset - 10, alpha, TextAlignment.BOTTOM_CENTER) + spacing;
+					offset -= draw(graphics, subtitle.getValue(), 0, offset - 10, alpha, TextAlignment.BOTTOM_CENTER) + spacing;
 					break;
 				case BOTTOM_RIGHT:
-					offset -= draw(graphics, subtitle.getValue(), font, -10, offset - 10, alpha, TextAlignment.BOTTOM_RIGHT) + spacing;
+					offset -= draw(graphics, subtitle.getValue(), -10, offset - 10, alpha, TextAlignment.BOTTOM_RIGHT) + spacing;
 					break;
 			}
 		}
@@ -104,21 +103,138 @@ public class PolywoofOverlay extends Overlay
 		font = new Font(config.fontName(), Font.PLAIN, config.fontSize());
 	}
 
-	private int draw(Graphics2D graphics, String text, Font font, int x, int y, float alpha, TextAlignment alignment)
+	public void clear()
 	{
-		LinkedList<String> lines = new LinkedList<>(Arrays.asList(text.split("\n")));
+		permanent.clear();
+		temporary.clear();
+	}
+
+	private int draw(Graphics2D graphics, String text, int x, int y, float alpha, TextAlignment alignment)
+	{
 		FontMetrics metrics = graphics.getFontMetrics(font);
+		LinkedList<String> list = wrap(text, metrics);
 
 		int ascent = metrics.getAscent();
+		int width = 0;
+		int height = 0;
 		int padding = 8;
 		int spacing = 4;
-		int width = 0;
-		int height = padding * 2;
 
-		for(int l = 0; l < lines.size(); l++)
+		for(String line : list)
+		{
+			width = Math.max(width, metrics.stringWidth(line) + padding * 2);
+			height += ascent + spacing;
+		}
+
+		int offset_x = 0;
+		int offset_y = 0;
+		height -= spacing - padding * 2;
+
+		switch (alignment)
+		{
+			case TOP_LEFT:
+				offset_x = x - padding;
+				offset_y = y - padding;
+				break;
+			case TOP_CENTER:
+				offset_x = x - width / 2;
+				offset_y = y - padding;
+				break;
+			case TOP_RIGHT:
+				offset_x = x + padding - width;
+				offset_y = y - padding;
+				break;
+			case BOTTOM_LEFT:
+				offset_x = x - padding;
+				offset_y = y + padding - height;
+				break;
+			case BOTTOM_CENTER:
+				offset_x = x - width / 2;
+				offset_y = y + padding - height;
+				break;
+			case BOTTOM_RIGHT:
+				offset_x = x + padding - width;
+				offset_y = y + padding - height;
+				break;
+		}
+
+		Color color = config.overlayColor();
+		int a = Math.round(color.getAlpha() * alpha);
+
+		graphics.setColor(new Color(color.getRed(), color.getGreen(), color.getBlue(), a));
+		graphics.fillRect(offset_x, offset_y, width, height);
+
+		if(config.overlayOutline())
+		{
+			color = color.brighter();
+
+			graphics.setColor(new Color(color.getRed(), color.getGreen(), color.getBlue(), a));
+			graphics.drawRect(offset_x + 1, offset_y + 1, width - 3, height - 3);
+		}
+
+		int offset = 0;
+
+		graphics.setFont(font);
+
+		for(String line : list)
+		{
+			switch (alignment)
+			{
+				case TOP_LEFT:
+					offset_x = x;
+					offset_y = y + offset + ascent;
+					break;
+				case TOP_CENTER:
+					offset_x = x - metrics.stringWidth(line) / 2;
+					offset_y = y + offset + ascent;
+					break;
+				case TOP_RIGHT:
+					offset_x = x - metrics.stringWidth(line);
+					offset_y = y + offset + ascent;
+					break;
+				case BOTTOM_LEFT:
+					offset_x = x;
+					offset_y = y + offset + ascent + padding * 2 - height;
+					break;
+				case BOTTOM_CENTER:
+					offset_x = x - metrics.stringWidth(line) / 2;
+					offset_y = y + offset + ascent + padding * 2 - height;
+					break;
+				case BOTTOM_RIGHT:
+					offset_x = x - metrics.stringWidth(line);
+					offset_y = y + padding * 2 + offset + ascent - height;
+					break;
+			}
+
+			if(config.textShadow())
+			{
+				color = Color.BLACK;
+				a = Math.round(color.getAlpha() * alpha);
+
+				graphics.setColor(new Color(color.getRed(), color.getGreen(), color.getBlue(), a));
+				graphics.drawString(line, offset_x + 1, offset_y + 1);
+			}
+
+			color = Color.WHITE;
+			a = Math.round(color.getAlpha() * alpha);
+
+			graphics.setColor(new Color(color.getRed(), color.getGreen(), color.getBlue(), a));
+			graphics.drawString(line, offset_x, offset_y);
+
+			offset += ascent + spacing;
+		}
+
+		return height;
+	}
+
+	private LinkedList<String> wrap(String text, FontMetrics metrics)
+	{
+		LinkedList<String> list = new LinkedList<>(Arrays.asList(text.split("\n")));
+
+		for(int l = 0; l < list.size(); l++)
 		{
 			StringBuilder compare = new StringBuilder();
-			String line = lines.get(l);
+			String line = list.get(l);
 
 			int logical = 0;
 			int character = 0;
@@ -132,6 +248,7 @@ public class PolywoofOverlay extends Overlay
 					case ' ':
 					case '.':
 					case ',':
+					case ':':
 					case ';':
 					case '-':
 						logical = i;
@@ -155,83 +272,18 @@ public class PolywoofOverlay extends Overlay
 						if(cut == 0) break;
 					}
 
-					lines.set(l, line.substring(0, cut + 1).trim());
+					String beg = line.substring(0, cut + 1);
+					String end = line.substring(cut + 1);
 
-					String sub = line.substring(cut + 1).trim();
+					list.set(l, beg);
 
-					if(sub.length() > 0) lines.add(l + 1, sub);
+					if(end.length() > 0) list.add(l + 1, end);
 					break;
 				}
 			}
 		}
 
-		for(String line : lines)
-		{
-			width = Math.max(width, metrics.stringWidth(line) + padding * 2);
-			height += ascent + spacing;
-		}
-
-		height -= spacing;
-		Color c1 = config.overlayColor();
-
-		graphics.setColor(new Color(c1.getRed(), c1.getGreen(), c1.getBlue(), Math.round(c1.getAlpha() * alpha)));
-
-		switch (alignment)
-		{
-			case TOP_LEFT:
-				graphics.fillRect(x - padding, y - padding, width, height);
-				break;
-			case TOP_CENTER:
-				graphics.fillRect(x - width / 2, y - padding, width, height);
-				break;
-			case TOP_RIGHT:
-				graphics.fillRect(x + padding - width, y - padding, width, height);
-				break;
-			case BOTTOM_LEFT:
-				graphics.fillRect(x - padding, y + padding - height, width, height);
-				break;
-			case BOTTOM_CENTER:
-				graphics.fillRect(x - width / 2, y + padding - height, width, height);
-				break;
-			case BOTTOM_RIGHT:
-				graphics.fillRect(x + padding - width, y + padding - height, width, height);
-				break;
-		}
-
-		int offset = 0;
-		Color c2 = Color.WHITE;
-
-		graphics.setFont(font);
-		graphics.setColor(new Color(c2.getRed(), c2.getGreen(), c2.getBlue(), Math.round(c2.getAlpha() * alpha)));
-
-		for(String line : lines)
-		{
-			switch (alignment)
-			{
-				case TOP_LEFT:
-					graphics.drawString(line, x, y + offset + ascent);
-					break;
-				case TOP_CENTER:
-					graphics.drawString(line, x - metrics.stringWidth(line) / 2, y + offset + ascent);
-					break;
-				case TOP_RIGHT:
-					graphics.drawString(line, x - metrics.stringWidth(line), y + offset + ascent);
-					break;
-				case BOTTOM_LEFT:
-					graphics.drawString(line, x, y + offset + ascent + padding * 2 - height);
-					break;
-				case BOTTOM_CENTER:
-					graphics.drawString(line, x - metrics.stringWidth(line) / 2, y + offset + ascent + padding * 2 - height);
-					break;
-				case BOTTOM_RIGHT:
-					graphics.drawString(line, x - metrics.stringWidth(line), y + padding * 2 + offset + ascent - height);
-					break;
-			}
-
-			offset += ascent + spacing;
-		}
-
-		return height;
+		return list;
 	}
 
 	public enum TextAlignment

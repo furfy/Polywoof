@@ -59,7 +59,7 @@ public interface PolywoofConfig extends Config
 	@ConfigItem( keyName = "enableOverhead", name = "Overhead Text", description = "Translate overhead text", section = behaviorSection, position = 3 )
 	default boolean enableOverhead()
 	{
-		return true;
+		return false;
 	}
 
 	@ConfigItem( keyName = "enableClues", name = "Treasure Clues", description = "Translate treasure clues", section = behaviorSection, position = 4 )
@@ -99,6 +99,12 @@ public interface PolywoofConfig extends Config
 		return 12;
 	}
 
+	@ConfigItem( keyName = "textShadow", name = "Text Shadow", description = "Suspicious shadowy text", section = fontSection, position = 2 )
+	default boolean textShadow()
+	{
+		return true;
+	}
+
 	@ConfigItem( keyName = "overlayPosition", name = "Position on Screen", description = "Put the thing where it belongs", section = visualSection, position = 0 )
 	default OverlayPosition overlayPosition()
 	{
@@ -110,6 +116,12 @@ public interface PolywoofConfig extends Config
 	default Color overlayColor()
 	{
 		return new Color(32, 32, 32, 128);
+	}
+
+	@ConfigItem( keyName = "overlayOutline", name = "Show Outline", description = "Make it.. cooler", section = visualSection, position = 2 )
+	default boolean overlayOutline()
+	{
+		return true;
 	}
 
 	@Range( min = 32 )

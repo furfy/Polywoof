@@ -166,7 +166,7 @@ public class PolywoofTranslator
 
 	public String stripTags(String text)
 	{
-		return text.replaceAll("[ ]*<br>[ ]*", " ").replaceAll("<.*?>", "");
+		return text.replaceAll("<br>", " ").replaceAll("<.*?>", "").replaceAll("[ ]{2,}", " ").trim();
 	}
 
 	interface Translate
