@@ -14,10 +14,10 @@ import java.util.HashMap;
 import java.util.Map;
 
 @Slf4j
-
 public class PolywoofTranslator
 {
-	private static final Map<String, Map<String, String>> cache = new HashMap<>();
+	private static final Map<String, Map<String, String>> CACHE = new HashMap<>();
+
 	private final String URL;
 	private final String token;
 	private final OkHttpClient client;
@@ -31,7 +31,8 @@ public class PolywoofTranslator
 
 	private void post(String path, RequestBody body, Callback callback) throws IOException
 	{
-		if(token.length() == 0) return;
+		if(token.length() == 0)
+			return;
 
 		Request request = new Request.Builder()
 				.addHeader("User-Agent", RuneLite.USER_AGENT + " (polywoof)")
@@ -39,14 +40,16 @@ public class PolywoofTranslator
 				.addHeader("Accept", "application/json")
 				.addHeader("Content-Type", "application/x-www-form-urlencoded")
 				.addHeader("Content-Length", String.valueOf(body.contentLength()))
-				.url(URL + path).post(body).build();
+				.url(URL + path)
+				.post(body)
+				.build();
 
 		client.newCall(request).enqueue(callback);
 	}
 
 	private void handleError(int code) throws IOException
 	{
-		switch (code)
+		switch(code)
 		{
 			case 200:
 				return;
@@ -73,11 +76,12 @@ public class PolywoofTranslator
 
 	public void translate(String text, String target_lang, Translate callback)
 	{
-		if(text.length() == 0 || target_lang.length() == 0) return;
+		if(text.length() == 0 || target_lang.length() == 0)
+			return;
 
-		if(cache.containsKey(text) && cache.get(text).containsKey(target_lang))
+		if(CACHE.containsKey(text) && CACHE.get(text).containsKey(target_lang))
 		{
-			callback.translate(cache.get(text).get(target_lang));
+			callback.translate(CACHE.get(text).get(target_lang));
 			return;
 		}
 
@@ -114,18 +118,17 @@ public class PolywoofTranslator
 					StringBuilder output = new StringBuilder();
 
 					for(JsonElement element : json.getAsJsonArray("translations"))
-					{
 						output.append(StringEscapeUtils.unescapeHtml4(element.getAsJsonObject().get("text").getAsString()));
-					}
 
-					if(!cache.containsKey(text)) cache.put(text, new HashMap<>());
+					if(!CACHE.containsKey(text))
+						CACHE.put(text, new HashMap<>());
 
-					cache.get(text).put(target_lang, output.toString());
-					callback.translate(cache.get(text).get(target_lang));
+					CACHE.get(text).put(target_lang, output.toString());
+					callback.translate(CACHE.get(text).get(target_lang));
 				}
 			});
 		}
-		catch (IOException error)
+		catch(IOException error)
 		{
 			error.printStackTrace();
 		}
@@ -158,7 +161,7 @@ public class PolywoofTranslator
 				}
 			});
 		}
-		catch (IOException error)
+		catch(IOException error)
 		{
 			error.printStackTrace();
 		}

@@ -1,99 +1,145 @@
 package com.polywoof;
 
 import lombok.extern.slf4j.Slf4j;
+import net.runelite.api.Client;
 import net.runelite.client.ui.overlay.Overlay;
+import net.runelite.client.ui.overlay.OverlayPosition;
+import net.runelite.client.ui.overlay.tooltip.Tooltip;
+import net.runelite.client.ui.overlay.tooltip.TooltipManager;
+import net.runelite.client.util.ImageUtil;
 
 import javax.inject.Inject;
 import java.awt.*;
-import java.util.Arrays;
+import java.awt.image.BufferedImage;
 import java.util.LinkedHashMap;
-import java.util.LinkedList;
 import java.util.Map;
 
 @Slf4j
-
 public class PolywoofOverlay extends Overlay
 {
 	@Inject
+	private Client client;
+
+	@Inject
 	private PolywoofConfig config;
 
-	private final Map<Integer, String> permanent = new LinkedHashMap<>();
-	private final Map<Long, String> temporary = new LinkedHashMap<>();
+	@Inject
+	private TooltipManager tooltipManager;
+
+	private static final int MARGIN = 12;
+	private static final int SPACING = 4;
+	private static final BufferedImage BUTTON = ImageUtil.loadImageResource(PolywoofPlugin.class, "/button.png");
+
+	private final Map<Integer, PolywoofComponent> permanent = new LinkedHashMap<>();
+	private final Map<Long, PolywoofComponent> temporary = new LinkedHashMap<>();
+	private final Rectangle button = new Rectangle(0, 0, 30, 30);
 	private Font font;
 
 	@Override
 	public Dimension render(Graphics2D graphics)
 	{
 		int offset = 0;
-		int spacing = 4;
+		Map<Long, PolywoofComponent> copy = new LinkedHashMap<>();
 
-		Map<Long, String> copy = new LinkedHashMap<>();
-
-		for(Map.Entry<Integer, String> subtitle : permanent.entrySet())
-		{
-			copy.put(0L, subtitle.getValue());
-		}
+		for(Map.Entry<Integer, PolywoofComponent> entry : permanent.entrySet())
+			copy.put(0L, entry.getValue());
 
 		copy.putAll(temporary);
 
-		for(Map.Entry<Long, String> subtitle : copy.entrySet())
+		if(config.button() && !getBounds().contains(client.getMouseCanvasPosition().getX(), client.getMouseCanvasPosition().getY()))
+		{
+			graphics.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, 0.1f));
+			graphics.drawImage(BUTTON, button.x, button.y, button.width, button.height, null);
+		}
+
+		for(Map.Entry<Long, PolywoofComponent> entry : copy.entrySet())
 		{
 			float alpha = 1f;
+			OverlayPosition position = getPreferredPosition();
 
-			if(subtitle.getKey() != 0)
+			if(position == null)
+				position = getPosition();
+
+			if(entry.getKey() != 0)
 			{
-				long difference = Math.max(0, subtitle.getKey() - System.currentTimeMillis());
+				long difference = Math.max(0, entry.getKey() - System.currentTimeMillis());
 
 				if(difference == 0)
 				{
-					temporary.remove(subtitle.getKey());
+					temporary.remove(entry.getKey());
 					continue;
 				}
 
 				alpha = Math.min(1000f, difference) / 1000f;
 			}
 
-			switch (getPosition())
+			switch(position)
 			{
 				case TOP_LEFT:
-					offset += draw(graphics, subtitle.getValue(), 10, 10 + offset, alpha, TextAlignment.TOP_LEFT) + spacing;
+					PolywoofComponent.setAlignment(PolywoofComponent.Alignment.TOP_LEFT);
+					entry.getValue().setLocation(MARGIN, MARGIN + offset);
+					offset += entry.getValue().getBounds().height + SPACING;
 					break;
 				case TOP_CENTER:
-					offset += draw(graphics, subtitle.getValue(), 0, 10 + offset, alpha, TextAlignment.TOP_CENTER) + spacing;
+					PolywoofComponent.setAlignment(PolywoofComponent.Alignment.TOP_CENTER);
+					entry.getValue().setLocation(button.width / 2, MARGIN + offset);
+					offset += entry.getValue().getBounds().height + SPACING;
 					break;
 				case TOP_RIGHT:
-					offset += draw(graphics, subtitle.getValue(), -10, 10 + offset, alpha, TextAlignment.TOP_RIGHT) + spacing;
+					PolywoofComponent.setAlignment(PolywoofComponent.Alignment.TOP_RIGHT);
+					entry.getValue().setLocation(button.width - MARGIN, MARGIN + offset);
+					offset += entry.getValue().getBounds().height + SPACING;
 					break;
 				case BOTTOM_LEFT:
-					offset -= draw(graphics, subtitle.getValue(), 10, offset - 10, alpha, TextAlignment.BOTTOM_LEFT) + spacing;
-					break;
-				case ABOVE_CHATBOX_RIGHT:
-					offset -= draw(graphics, subtitle.getValue(), 0, offset - 10, alpha, TextAlignment.BOTTOM_CENTER) + spacing;
+					PolywoofComponent.setAlignment(PolywoofComponent.Alignment.BOTTOM_LEFT);
+					entry.getValue().setLocation(MARGIN, offset - MARGIN + button.height);
+					offset -= entry.getValue().getBounds().height + SPACING;
 					break;
 				case BOTTOM_RIGHT:
-					offset -= draw(graphics, subtitle.getValue(), -10, offset - 10, alpha, TextAlignment.BOTTOM_RIGHT) + spacing;
+					PolywoofComponent.setAlignment(PolywoofComponent.Alignment.BOTTOM_RIGHT);
+					entry.getValue().setLocation(button.width - MARGIN, offset - MARGIN + button.height);
+					offset -= entry.getValue().getBounds().height + SPACING;
+					break;
+				default:
+					PolywoofComponent.setAlignment(PolywoofComponent.Alignment.BOTTOM_CENTER);
+					entry.getValue().setLocation(button.width / 2, offset - MARGIN + button.height);
+					offset -= entry.getValue().getBounds().height + SPACING;
 					break;
 			}
+
+			entry.getValue().setAlpha(alpha);
+			entry.getValue().render(graphics);
 		}
 
-		return null;
+		if(config.button() && getBounds().contains(client.getMouseCanvasPosition().getX(), client.getMouseCanvasPosition().getY()))
+		{
+			graphics.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER));
+			graphics.drawImage(BUTTON, button.x, button.y, button.width, button.height, null);
+
+			if(!client.isMenuOpen())
+				tooltipManager.addFront(new Tooltip("Polywoof is " + (config.toggle() ? "<col=00ff00>On" : "<col=ff0000>Off") + "</col>"));
+		}
+
+		return button.getSize();
 	}
 
 	public void put(String text)
 	{
-		if(text.length() > 0) temporary.put(2000L + System.currentTimeMillis() + (long)(1000f * text.length() * (1f / config.readingSpeed())), text);
+		if(text.length() > 0)
+			temporary.put(System.currentTimeMillis() + 1500L + (long) (1000f * text.length() * (1f / config.readingSpeed())), new PolywoofComponent(text, font));
 	}
 
 	public void set(Integer id, String text)
 	{
-		if(text.length() > 0) permanent.put(id, text);
+		if(text.length() > 0)
+			permanent.put(id, new PolywoofComponent(text, font));
 	}
 
 	public void vanish(Integer id)
 	{
 		if(permanent.containsKey(id))
 		{
-			temporary.put(System.currentTimeMillis() + 1500, permanent.get(id));
+			temporary.put(System.currentTimeMillis() + 1500L, permanent.get(id));
 			permanent.remove(id);
 		}
 	}
@@ -101,198 +147,22 @@ public class PolywoofOverlay extends Overlay
 	public void update()
 	{
 		font = new Font(config.fontName(), Font.PLAIN, config.fontSize());
+
+		PolywoofComponent.setTextWrap(config.textWrap());
+		PolywoofComponent.setTextShadow(config.textShadow());
+		PolywoofComponent.setBoxOutline(config.overlayOutline());
+		PolywoofComponent.setColor(config.overlayColor());
+
+		for(Map.Entry<Integer, PolywoofComponent> entry : permanent.entrySet())
+			entry.getValue().build();
+
+		for(Map.Entry<Long, PolywoofComponent> entry : temporary.entrySet())
+			entry.getValue().build();
 	}
 
 	public void clear()
 	{
 		permanent.clear();
 		temporary.clear();
-	}
-
-	private int draw(Graphics2D graphics, String text, int x, int y, float alpha, TextAlignment alignment)
-	{
-		FontMetrics metrics = graphics.getFontMetrics(font);
-		LinkedList<String> list = wrap(text, metrics);
-
-		int ascent = metrics.getAscent();
-		int width = 0;
-		int height = 0;
-		int padding = 8;
-		int spacing = 4;
-
-		for(String line : list)
-		{
-			width = Math.max(width, metrics.stringWidth(line) + padding * 2);
-			height += ascent + spacing;
-		}
-
-		int offset_x = 0;
-		int offset_y = 0;
-		height -= spacing - padding * 2;
-
-		switch (alignment)
-		{
-			case TOP_LEFT:
-				offset_x = x - padding;
-				offset_y = y - padding;
-				break;
-			case TOP_CENTER:
-				offset_x = x - width / 2;
-				offset_y = y - padding;
-				break;
-			case TOP_RIGHT:
-				offset_x = x + padding - width;
-				offset_y = y - padding;
-				break;
-			case BOTTOM_LEFT:
-				offset_x = x - padding;
-				offset_y = y + padding - height;
-				break;
-			case BOTTOM_CENTER:
-				offset_x = x - width / 2;
-				offset_y = y + padding - height;
-				break;
-			case BOTTOM_RIGHT:
-				offset_x = x + padding - width;
-				offset_y = y + padding - height;
-				break;
-		}
-
-		Color color = config.overlayColor();
-		int a = Math.round(color.getAlpha() * alpha);
-
-		graphics.setColor(new Color(color.getRed(), color.getGreen(), color.getBlue(), a));
-		graphics.fillRect(offset_x, offset_y, width, height);
-
-		if(config.overlayOutline())
-		{
-			color = color.brighter();
-
-			graphics.setColor(new Color(color.getRed(), color.getGreen(), color.getBlue(), a));
-			graphics.drawRect(offset_x + 1, offset_y + 1, width - 3, height - 3);
-		}
-
-		int offset = 0;
-
-		graphics.setFont(font);
-
-		for(String line : list)
-		{
-			switch (alignment)
-			{
-				case TOP_LEFT:
-					offset_x = x;
-					offset_y = y + offset + ascent;
-					break;
-				case TOP_CENTER:
-					offset_x = x - metrics.stringWidth(line) / 2;
-					offset_y = y + offset + ascent;
-					break;
-				case TOP_RIGHT:
-					offset_x = x - metrics.stringWidth(line);
-					offset_y = y + offset + ascent;
-					break;
-				case BOTTOM_LEFT:
-					offset_x = x;
-					offset_y = y + offset + ascent + padding * 2 - height;
-					break;
-				case BOTTOM_CENTER:
-					offset_x = x - metrics.stringWidth(line) / 2;
-					offset_y = y + offset + ascent + padding * 2 - height;
-					break;
-				case BOTTOM_RIGHT:
-					offset_x = x - metrics.stringWidth(line);
-					offset_y = y + padding * 2 + offset + ascent - height;
-					break;
-			}
-
-			if(config.textShadow())
-			{
-				color = Color.BLACK;
-				a = Math.round(color.getAlpha() * alpha);
-
-				graphics.setColor(new Color(color.getRed(), color.getGreen(), color.getBlue(), a));
-				graphics.drawString(line, offset_x + 1, offset_y + 1);
-			}
-
-			color = Color.WHITE;
-			a = Math.round(color.getAlpha() * alpha);
-
-			graphics.setColor(new Color(color.getRed(), color.getGreen(), color.getBlue(), a));
-			graphics.drawString(line, offset_x, offset_y);
-
-			offset += ascent + spacing;
-		}
-
-		return height;
-	}
-
-	private LinkedList<String> wrap(String text, FontMetrics metrics)
-	{
-		LinkedList<String> list = new LinkedList<>(Arrays.asList(text.split("\n")));
-
-		for(int l = 0; l < list.size(); l++)
-		{
-			StringBuilder compare = new StringBuilder();
-			String line = list.get(l);
-
-			int logical = 0;
-			int character = 0;
-
-			for(int i = 0; i < line.length(); i++)
-			{
-				char at = line.charAt(i);
-
-				switch (at)
-				{
-					case ' ':
-					case '.':
-					case ',':
-					case ':':
-					case ';':
-					case '-':
-						logical = i;
-						character = 0;
-						break;
-					default:
-						character = i;
-						break;
-				}
-
-				compare.append(at);
-
-				if(metrics.stringWidth(compare.toString()) > config.wrapWidth())
-				{
-					int cut = Math.min(logical, character);
-
-					if(cut == 0)
-					{
-						cut = Math.max(logical, character);
-
-						if(cut == 0) break;
-					}
-
-					String beg = line.substring(0, cut + 1);
-					String end = line.substring(cut + 1);
-
-					list.set(l, beg);
-
-					if(end.length() > 0) list.add(l + 1, end);
-					break;
-				}
-			}
-		}
-
-		return list;
-	}
-
-	public enum TextAlignment
-	{
-		TOP_LEFT,
-		TOP_CENTER,
-		TOP_RIGHT,
-		BOTTOM_LEFT,
-		BOTTOM_CENTER,
-		BOTTOM_RIGHT
 	}
 }
