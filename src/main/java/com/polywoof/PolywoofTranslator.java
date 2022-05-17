@@ -16,7 +16,7 @@ import java.util.Map;
 @Slf4j
 public class PolywoofTranslator
 {
-	private static final Map<String, Map<String, String>> CACHE = new HashMap<>();
+	private static final Map<String, Map<String, String>> cache = new HashMap<>();
 
 	private final String URL;
 	private final String token;
@@ -79,9 +79,9 @@ public class PolywoofTranslator
 		if(text.length() == 0 || target_lang.length() == 0)
 			return;
 
-		if(CACHE.containsKey(text) && CACHE.get(text).containsKey(target_lang))
+		if(cache.containsKey(text) && cache.get(text).containsKey(target_lang))
 		{
-			callback.translate(CACHE.get(text).get(target_lang));
+			callback.translate(cache.get(text).get(target_lang));
 			return;
 		}
 
@@ -120,11 +120,11 @@ public class PolywoofTranslator
 					for(JsonElement element : json.getAsJsonArray("translations"))
 						output.append(StringEscapeUtils.unescapeHtml4(element.getAsJsonObject().get("text").getAsString()));
 
-					if(!CACHE.containsKey(text))
-						CACHE.put(text, new HashMap<>());
+					if(!cache.containsKey(text))
+						cache.put(text, new HashMap<>());
 
-					CACHE.get(text).put(target_lang, output.toString());
-					callback.translate(CACHE.get(text).get(target_lang));
+					cache.get(text).put(target_lang, output.toString());
+					callback.translate(cache.get(text).get(target_lang));
 				}
 			});
 		}

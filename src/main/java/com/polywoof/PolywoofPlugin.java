@@ -17,10 +17,12 @@ import net.runelite.client.eventbus.Subscribe;
 import net.runelite.client.events.ConfigChanged;
 import net.runelite.client.plugins.Plugin;
 import net.runelite.client.plugins.PluginDescriptor;
+import net.runelite.client.ui.JagexColors;
 import net.runelite.client.ui.overlay.OverlayLayer;
 import net.runelite.client.ui.overlay.OverlayManager;
 import net.runelite.client.ui.overlay.OverlayPosition;
 import net.runelite.client.ui.overlay.OverlayPriority;
+import net.runelite.client.util.ColorUtil;
 import okhttp3.OkHttpClient;
 
 import javax.inject.Inject;
@@ -29,6 +31,10 @@ import javax.inject.Inject;
 @PluginDescriptor(name = "Polywoof", description = "Translation for almost every dialogue and any related text, so you can understand what's going on!", tags = {"helper", "language", "translator", "translation"})
 public class PolywoofPlugin extends Plugin
 {
+	private int dialogue = 0;
+	private String previous = null;
+	private PolywoofTranslator translator;
+
 	@Inject
 	private Client client;
 
@@ -47,17 +53,13 @@ public class PolywoofPlugin extends Plugin
 	@Inject
 	private OkHttpClient okHttpClient;
 
-	private int dialog;
-	private String previous;
-	private PolywoofTranslator translator;
-
 	@Override
 	protected void startUp() throws Exception
 	{
 		translator = new PolywoofTranslator(okHttpClient, config.token());
 
 		polywoofOverlay.update();
-		polywoofOverlay.setPosition(OverlayPosition.BOTTOM_LEFT);
+		polywoofOverlay.setPosition(OverlayPosition.ABOVE_CHATBOX_RIGHT);
 		polywoofOverlay.setLayer(OverlayLayer.ABOVE_WIDGETS);
 		polywoofOverlay.setPriority(OverlayPriority.LOW);
 		overlayManager.add(polywoofOverlay);
@@ -167,9 +169,6 @@ public class PolywoofPlugin extends Plugin
 	@Subscribe
 	public void onWidgetLoaded(WidgetLoaded event)
 	{
-		if(!config.toggle())
-			return;
-
 		switch(event.getGroupId())
 		{
 			case WidgetID.DIALOG_NPC_GROUP_ID:
@@ -181,7 +180,7 @@ public class PolywoofPlugin extends Plugin
 			case 11:
 			case 229:
 			case 392:
-				dialog = event.getGroupId();
+				dialogue = event.getGroupId();
 				break;
 		}
 	}
@@ -200,7 +199,7 @@ public class PolywoofPlugin extends Plugin
 			case 11:
 			case 229:
 			case 392:
-				dialog = 0;
+				dialogue = 0;
 				break;
 		}
 	}
@@ -215,7 +214,7 @@ public class PolywoofPlugin extends Plugin
 		Widget widget2;
 		Widget widget3;
 
-		switch(dialog)
+		switch(dialogue)
 		{
 			case WidgetID.DIALOG_NPC_GROUP_ID:
 				widget1 = client.getWidget(WidgetInfo.DIALOG_NPC_NAME);
@@ -228,7 +227,7 @@ public class PolywoofPlugin extends Plugin
 				text = widget2.getText();
 				break;
 			case WidgetID.DIALOG_PLAYER_GROUP_ID:
-				widget1 = client.getWidget(dialog, 4);
+				widget1 = client.getWidget(dialogue, 4);
 				widget2 = client.getWidget(WidgetInfo.DIALOG_PLAYER_TEXT);
 
 				if(widget1 == null || widget2 == null)
@@ -294,7 +293,7 @@ public class PolywoofPlugin extends Plugin
 				text = widget1.getText();
 				break;
 			case 11:
-				widget1 = client.getWidget(dialog, 2);
+				widget1 = client.getWidget(dialogue, 2);
 
 				if(widget1 == null)
 					return;
@@ -303,7 +302,7 @@ public class PolywoofPlugin extends Plugin
 				text = widget1.getText();
 				break;
 			case 229:
-				widget1 = client.getWidget(dialog, 1);
+				widget1 = client.getWidget(dialogue, 1);
 
 				if(widget1 == null)
 					return;
@@ -315,9 +314,9 @@ public class PolywoofPlugin extends Plugin
 				if(!config.enableBooks())
 					return;
 
-				widget1 = client.getWidget(dialog, 6);
-				widget2 = client.getWidget(dialog, 43);
-				widget3 = client.getWidget(dialog, 59);
+				widget1 = client.getWidget(dialogue, 6);
+				widget2 = client.getWidget(dialogue, 43);
+				widget3 = client.getWidget(dialogue, 59);
 
 				if(widget1 == null || widget2 == null || widget3 == null)
 					return;
@@ -334,7 +333,7 @@ public class PolywoofPlugin extends Plugin
 				text = book.toString();
 				break;
 			default:
-				previous = "";
+				previous = null;
 
 				polywoofOverlay.vanish(1);
 				return;
@@ -342,8 +341,16 @@ public class PolywoofPlugin extends Plugin
 
 		if(text.equals(previous))
 			return;
-		else
-			previous = text;
+
+		if(!config.toggle())
+		{
+			previous = null;
+
+			polywoofOverlay.vanish(1);
+			return;
+		}
+
+		previous = text;
 
 		if(config.test())
 		{
@@ -368,13 +375,13 @@ public class PolywoofPlugin extends Plugin
 
 		client.createMenuEntry(1)
 				.setOption("Check")
-				.setTarget("<col=00ffff>API Usage</col>")
+				.setTarget(ColorUtil.wrapWithColorTag("Usage", JagexColors.MENU_TARGET))
 				.setType(MenuAction.RUNELITE)
 				.onClick(menuEntry -> usage());
 
 		client.createMenuEntry(2)
 				.setOption(config.toggle() ? "Disable" : "Enable")
-				.setTarget("<col=00ffff>Translation</col>")
+				.setTarget(ColorUtil.wrapWithColorTag("Translation", JagexColors.MENU_TARGET))
 				.setType(MenuAction.RUNELITE)
 				.onClick(menuEntry -> config.set_toggle(!config.toggle()));
 	}
