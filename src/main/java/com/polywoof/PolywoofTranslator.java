@@ -1,53 +1,50 @@
 package com.polywoof;
 
+import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import lombok.extern.slf4j.Slf4j;
 import net.runelite.client.RuneLite;
 import okhttp3.*;
-import okhttp3.internal.annotations.EverythingIsNonNull;
 import org.apache.commons.text.StringEscapeUtils;
 
+import javax.annotation.Nullable;
+import javax.annotation.ParametersAreNonnullByDefault;
 import java.io.IOException;
-import java.util.HashMap;
-import java.util.Map;
+import java.util.LinkedList;
 
 @Slf4j
+@ParametersAreNonnullByDefault
 public class PolywoofTranslator
 {
-	private static final Map<String, Map<String, String>> cache = new HashMap<>();
-
-	private final String URL;
-	private final String token;
+	private static final LinkedList<Language> support = new LinkedList<>();
 	private final OkHttpClient client;
+	private String URL;
+	private String token;
 
 	public PolywoofTranslator(OkHttpClient client, String token)
 	{
 		this.client = client;
-		this.token = token;
-		this.URL = token.endsWith(":fx") ? "https://api-free.deepl.com" : "https://api.deepl.com";
+
+		this.update(token);
 	}
 
-	private void post(String path, RequestBody body, Callback callback) throws IOException
+	public static Language language(String target)
 	{
-		if(token.length() == 0)
-			return;
+		for(Language language : support)
+			if(language.code.equalsIgnoreCase(target) || language.name.toLowerCase().startsWith(target.toLowerCase()))
+				return language;
 
-		Request request = new Request.Builder()
-				.addHeader("User-Agent", RuneLite.USER_AGENT + " (polywoof)")
-				.addHeader("Authorization", "DeepL-Auth-Key " + token)
-				.addHeader("Accept", "application/json")
-				.addHeader("Content-Type", "application/x-www-form-urlencoded")
-				.addHeader("Content-Length", String.valueOf(body.contentLength()))
-				.url(URL + path)
-				.post(body)
-				.build();
-
-		client.newCall(request).enqueue(callback);
+		return null;
 	}
 
-	private void handleError(int code) throws IOException
+	public static String stripTags(String text)
+	{
+		return text.replaceAll("<br>", " ").replaceAll("<.*?>", "").replaceAll("[ ]{2,}", " ").trim();
+	}
+
+	private static void handleError(int code) throws IOException
 	{
 		switch(code)
 		{
@@ -74,57 +71,42 @@ public class PolywoofTranslator
 		}
 	}
 
-	public void translate(String text, String target_lang, Translate callback)
+	private void post(String path, RequestBody request, Receive callback)
 	{
-		if(text.length() == 0 || target_lang.length() == 0)
+		if(token.isEmpty())
 			return;
-
-		if(cache.containsKey(text) && cache.get(text).containsKey(target_lang))
-		{
-			callback.translate(cache.get(text).get(target_lang));
-			return;
-		}
 
 		try
 		{
-			RequestBody body = new FormBody.Builder()
-					.add("text", text)
-					.add("target_lang", target_lang)
-					.add("source_lang", "en")
-					.add("preserve_formatting", "1")
-					.add("tag_handling", "html")
-					.add("non_splitting_tags", "br")
+			Request headers = new Request.Builder()
+					.addHeader("User-Agent", RuneLite.USER_AGENT + " (polywoof)")
+					.addHeader("Authorization", "DeepL-Auth-Key " + token)
+					.addHeader("Accept", "application/json")
+					.addHeader("Content-Type", "application/x-www-form-urlencoded")
+					.addHeader("Content-Length", String.valueOf(request.contentLength()))
+					.url(URL + path)
+					.post(request)
 					.build();
 
-			post("/v2/translate", body, new Callback()
+			client.newCall(headers).enqueue(new Callback()
 			{
 				@Override
-				@EverythingIsNonNull
 				public void onFailure(Call call, IOException error)
 				{
 					error.printStackTrace();
 				}
 
 				@Override
-				@EverythingIsNonNull
 				public void onResponse(Call call, Response response) throws IOException
 				{
-					handleError(response.code());
+					try(ResponseBody body = response.body())
+					{
+						if(body == null)
+							return;
 
-					JsonParser parser = new JsonParser();
-					JsonElement root = parser.parse(response.body().string());
-					JsonObject json = root.getAsJsonObject();
-
-					StringBuilder output = new StringBuilder();
-
-					for(JsonElement element : json.getAsJsonArray("translations"))
-						output.append(StringEscapeUtils.unescapeHtml4(element.getAsJsonObject().get("text").getAsString()));
-
-					if(!cache.containsKey(text))
-						cache.put(text, new HashMap<>());
-
-					cache.get(text).put(target_lang, output.toString());
-					callback.translate(cache.get(text).get(target_lang));
+						handleError(response.code());
+						callback.receive(body.string());
+					}
 				}
 			});
 		}
@@ -132,44 +114,104 @@ public class PolywoofTranslator
 		{
 			error.printStackTrace();
 		}
+	}
+
+	public void translate(String text, @Nullable Language target_lang, PolywoofDB db, Translate callback)
+	{
+		if(text.isEmpty() || target_lang == null)
+			return;
+
+		if(!db.status())
+		{
+			translate(text, target_lang, callback);
+			return;
+		}
+
+		db.select(text, target_lang, string ->
+		{
+			if(string == null)
+				translate(text, target_lang, insert ->
+				{
+					db.insert(text, insert, target_lang);
+					callback.translate(insert);
+				});
+			else
+				callback.translate(string);
+		});
+	}
+
+	public void translate(String text, @Nullable Language target_lang, Translate callback)
+	{
+		String string = stripTags(text);
+
+		if(string.isEmpty() || target_lang == null)
+			return;
+
+		RequestBody request = new FormBody.Builder()
+				.add("text", string)
+				.add("target_lang", target_lang.code)
+				.add("source_lang", "en")
+				.add("preserve_formatting", "1")
+				.add("tag_handling", "html")
+				.add("non_splitting_tags", "br")
+				.build();
+
+		post("/v2/translate", request, body ->
+		{
+			JsonParser parser = new JsonParser();
+			JsonElement root = parser.parse(body);
+			JsonObject json = root.getAsJsonObject();
+
+			StringBuilder output = new StringBuilder();
+
+			for(JsonElement element : json.getAsJsonArray("translations"))
+				output.append(StringEscapeUtils.unescapeHtml4(element.getAsJsonObject().get("text").getAsString()));
+
+			callback.translate(output.toString());
+		});
 	}
 
 	public void usage(Usage callback)
 	{
-		try
+		post("/v2/usage", new FormBody.Builder().build(), body ->
 		{
-			post("/v2/usage", new FormBody.Builder().build(), new Callback()
-			{
-				@Override
-				@EverythingIsNonNull
-				public void onFailure(Call call, IOException error)
-				{
-					error.printStackTrace();
-				}
+			JsonParser parser = new JsonParser();
+			JsonElement root = parser.parse(body);
+			JsonObject json = root.getAsJsonObject();
 
-				@Override
-				@EverythingIsNonNull
-				public void onResponse(Call call, Response response) throws IOException
-				{
-					handleError(response.code());
-
-					JsonParser parser = new JsonParser();
-					JsonElement root = parser.parse(response.body().string());
-					JsonObject json = root.getAsJsonObject();
-
-					callback.usage(json.get("character_count").getAsLong(), json.get("character_limit").getAsLong());
-				}
-			});
-		}
-		catch(IOException error)
-		{
-			error.printStackTrace();
-		}
+			callback.usage(json.get("character_count").getAsLong(), json.get("character_limit").getAsLong());
+		});
 	}
 
-	public String stripTags(String text)
+	public void languages(String type, Languages callback)
 	{
-		return text.replaceAll("<br>", " ").replaceAll("<.*?>", "").replaceAll("[ ]{2,}", " ").trim();
+		post("/v2/languages", new FormBody.Builder().add("type", type).build(), body ->
+		{
+			JsonParser parser = new JsonParser();
+			JsonElement root = parser.parse(body);
+			JsonArray json = root.getAsJsonArray();
+
+			LinkedList<Language> output = new LinkedList<>();
+
+			for(JsonElement element : json)
+				output.add(new Language(element.getAsJsonObject()));
+
+			support.clear();
+			support.addAll(output);
+
+			callback.languages(output);
+		});
+	}
+
+	public void update(String token)
+	{
+		this.URL = token.endsWith(":fx") ? "https://api-free.deepl.com" : "https://api.deepl.com";
+		this.token = token;
+	}
+
+	interface Receive
+	{
+		void receive(String body);
 	}
 
 	interface Translate
@@ -180,5 +222,22 @@ public class PolywoofTranslator
 	interface Usage
 	{
 		void usage(long character_count, long character_limit);
+	}
+
+	interface Languages
+	{
+		void languages(LinkedList<Language> support);
+	}
+
+	public static class Language
+	{
+		public final String code;
+		public final String name;
+
+		public Language(JsonObject object)
+		{
+			this.code = object.get("language").getAsString();
+			this.name = object.get("name").getAsString();
+		}
 	}
 }

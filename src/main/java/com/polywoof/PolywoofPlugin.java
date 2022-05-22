@@ -8,6 +8,7 @@ import net.runelite.api.widgets.Widget;
 import net.runelite.api.widgets.WidgetID;
 import net.runelite.api.widgets.WidgetInfo;
 import net.runelite.api.widgets.WidgetType;
+import net.runelite.client.RuneLite;
 import net.runelite.client.chat.ChatColorType;
 import net.runelite.client.chat.ChatMessageBuilder;
 import net.runelite.client.chat.ChatMessageManager;
@@ -25,44 +26,41 @@ import net.runelite.client.ui.overlay.OverlayPriority;
 import net.runelite.client.util.ColorUtil;
 import okhttp3.OkHttpClient;
 
+import javax.annotation.ParametersAreNonnullByDefault;
 import javax.inject.Inject;
 
 @Slf4j
+@ParametersAreNonnullByDefault
 @PluginDescriptor(name = "Polywoof", description = "Translation for almost every dialogue and any related text, so you can understand what's going on!", tags = {"helper", "language", "translator", "translation"})
 public class PolywoofPlugin extends Plugin
 {
-	private int dialogue = 0;
-	private String previous = null;
+	private static final String FILENAME = String.format("%s/%s", RuneLite.CACHE_DIR, "languages");
+
+	private int dialogue;
+	private String previous;
 	private PolywoofTranslator translator;
+	private PolywoofDB db;
 
-	@Inject
-	private Client client;
-
-	@Inject
-	private PolywoofConfig config;
-
-	@Inject
-	private PolywoofOverlay polywoofOverlay;
-
-	@Inject
-	private ChatMessageManager chatMessageManager;
-
-	@Inject
-	private OverlayManager overlayManager;
-
-	@Inject
-	private OkHttpClient okHttpClient;
+	@Inject private Client client;
+	@Inject private PolywoofConfig config;
+	@Inject private PolywoofOverlay overlay;
+	@Inject private OverlayManager overlayManager;
+	@Inject private ChatMessageManager chatMessageManager;
+	@Inject private OkHttpClient okHttpClient;
 
 	@Override
 	protected void startUp() throws Exception
 	{
 		translator = new PolywoofTranslator(okHttpClient, config.token());
 
-		polywoofOverlay.update();
-		polywoofOverlay.setPosition(OverlayPosition.ABOVE_CHATBOX_RIGHT);
-		polywoofOverlay.setLayer(OverlayLayer.ABOVE_WIDGETS);
-		polywoofOverlay.setPriority(OverlayPriority.LOW);
-		overlayManager.add(polywoofOverlay);
+		db = new PolywoofDB("DEEPL", FILENAME);
+		db.open(string -> translator.languages("target", update -> db.update(update)));
+
+		overlay.update();
+		overlay.setPosition(OverlayPosition.ABOVE_CHATBOX_RIGHT);
+		overlay.setLayer(OverlayLayer.ABOVE_WIDGETS);
+		overlay.setPriority(OverlayPriority.LOW);
+		overlayManager.add(overlay);
 
 		if(config.showUsage())
 			usage();
@@ -71,8 +69,10 @@ public class PolywoofPlugin extends Plugin
 	@Override
 	protected void shutDown() throws Exception
 	{
-		polywoofOverlay.clear();
-		overlayManager.remove(polywoofOverlay);
+		db.close();
+
+		overlay.clear();
+		overlayManager.remove(overlay);
 	}
 
 	@Subscribe
@@ -84,7 +84,8 @@ public class PolywoofPlugin extends Plugin
 		switch(event.getKey())
 		{
 			case ("token"):
-				translator = new PolywoofTranslator(okHttpClient, config.token());
+				translator.update(config.token());
+				translator.languages("target", update -> db.update(update));
 				break;
 			case ("button"):
 				config.set_toggle(true);
@@ -95,7 +96,7 @@ public class PolywoofPlugin extends Plugin
 			case ("overlayColor"):
 			case ("overlayOutline"):
 			case ("textWrap"):
-				polywoofOverlay.update();
+				overlay.update();
 				break;
 		}
 	}
@@ -106,8 +107,8 @@ public class PolywoofPlugin extends Plugin
 		if(!config.toggle())
 			return;
 
-		String text;
 		String source;
+		String origin;
 
 		switch(event.getType())
 		{
@@ -117,25 +118,24 @@ public class PolywoofPlugin extends Plugin
 				if(!config.enableExamine())
 					return;
 
-				text = event.getMessage();
 				source = "Examine";
+				origin = event.getMessage();
 				break;
 			case GAMEMESSAGE:
 				if(!config.enableChat())
 					return;
 
-				text = event.getMessage();
 				source = "Game";
+				origin = event.getMessage();
 				break;
 			default:
 				return;
 		}
 
 		if(config.test())
-			polywoofOverlay.put((config.sourceName() ? translator.stripTags(source) + config.sourceSeparator() : "") + translator.stripTags(text));
+			overlay.put(separator(source) + PolywoofTranslator.stripTags(origin));
 		else
-			translator.translate(translator.stripTags(text), config.language().toLowerCase(), translation ->
-					polywoofOverlay.put((config.sourceName() ? translator.stripTags(source) + config.sourceSeparator() : "") + translation));
+			translator.translate(origin, PolywoofTranslator.language(config.language()), db, text -> overlay.put(separator(source) + text));
 	}
 
 	@Subscribe
@@ -146,16 +146,20 @@ public class PolywoofPlugin extends Plugin
 
 		Actor actor = event.getActor();
 
-		if(actor == client.getLocalPlayer() || actor instanceof NPC)
+		if(actor instanceof NPC)
 		{
-			String text = event.getOverheadText();
-			String source = actor.getName();
+			String source;
+			String origin = event.getOverheadText();
+
+			if(actor.getName() == null)
+				source = "Game";
+			else
+				source = actor.getName();
 
 			if(config.test())
-				polywoofOverlay.put((config.sourceName() ? source + config.sourceSeparator() : "") + translator.stripTags(text));
+				overlay.put(separator(source) + PolywoofTranslator.stripTags(origin));
 			else
-				translator.translate(translator.stripTags(text), config.language().toLowerCase(), translation ->
-						polywoofOverlay.put((config.sourceName() ? source + config.sourceSeparator() : "") + translation));
+				translator.translate(origin, PolywoofTranslator.language(config.language()), db, text -> overlay.put(separator(source) + text));
 		}
 	}
 
@@ -207,12 +211,14 @@ public class PolywoofPlugin extends Plugin
 	@Subscribe
 	public void onGameTick(GameTick event)
 	{
-		String text;
 		String source;
+		String origin;
 
 		Widget widget1;
 		Widget widget2;
 		Widget widget3;
+
+		Paragraph paragraph = Paragraph.NONE;
 
 		switch(dialogue)
 		{
@@ -224,7 +230,7 @@ public class PolywoofPlugin extends Plugin
 					return;
 
 				source = widget1.getText();
-				text = widget2.getText();
+				origin = widget2.getText();
 				break;
 			case WidgetID.DIALOG_PLAYER_GROUP_ID:
 				widget1 = client.getWidget(dialogue, 4);
@@ -234,7 +240,7 @@ public class PolywoofPlugin extends Plugin
 					return;
 
 				source = widget1.getText();
-				text = widget2.getText();
+				origin = widget2.getText();
 				break;
 			case WidgetID.DIALOG_SPRITE_GROUP_ID:
 				widget1 = client.getWidget(WidgetInfo.DIALOG_SPRITE_TEXT);
@@ -243,7 +249,7 @@ public class PolywoofPlugin extends Plugin
 					return;
 
 				source = "Game";
-				text = widget1.getText();
+				origin = widget1.getText();
 				break;
 			case WidgetID.DIALOG_OPTION_GROUP_ID:
 				widget1 = client.getWidget(WidgetInfo.DIALOG_OPTION_OPTIONS);
@@ -255,11 +261,21 @@ public class PolywoofPlugin extends Plugin
 				StringBuilder options = new StringBuilder();
 
 				for(Widget children : widget1.getDynamicChildren())
-					if(children.getType() == WidgetType.TEXT && children.getText().length() > 0)
-						options.append(++index == 0 ? "" : index + ". ").append(children.getText()).append("\n");
+					if(children.getType() == WidgetType.TEXT && !children.getText().isEmpty())
+					{
+						switch(paragraph)
+						{
+							case TYPE:
+								options.append("\n");
+								break;
+						}
+
+						paragraph = Paragraph.TYPE;
+						options.append(children.getText());
+					}
 
 				source = "Options";
-				text = options.toString();
+				origin = options.toString();
 				break;
 			case WidgetID.DIARY_QUEST_GROUP_ID:
 				if(!config.enableDiary())
@@ -274,11 +290,34 @@ public class PolywoofPlugin extends Plugin
 				StringBuilder diary = new StringBuilder();
 
 				for(Widget children : widget2.getStaticChildren())
-					if(children.getType() == WidgetType.TEXT && children.getText().length() > 0)
-						diary.append(children.getText()).append(" ");
+					if(children.getType() == WidgetType.TEXT)
+						if(children.getText().isEmpty())
+						{
+							switch(paragraph)
+							{
+								case SKIP:
+									paragraph = Paragraph.TYPE;
+									break;
+							}
+						}
+						else
+						{
+							switch(paragraph)
+							{
+								case SKIP:
+									diary.append(" ");
+									break;
+								case TYPE:
+									diary.append("\n");
+									break;
+							}
+
+							paragraph = Paragraph.SKIP;
+							diary.append(children.getText());
+						}
 
 				source = widget1.getText();
-				text = diary.toString();
+				origin = diary.toString();
 				break;
 			case WidgetID.CLUE_SCROLL_GROUP_ID:
 				if(!config.enableClues())
@@ -290,7 +329,7 @@ public class PolywoofPlugin extends Plugin
 					return;
 
 				source = "Clue";
-				text = widget1.getText();
+				origin = widget1.getText();
 				break;
 			case 11:
 				widget1 = client.getWidget(dialogue, 2);
@@ -299,7 +338,7 @@ public class PolywoofPlugin extends Plugin
 					return;
 
 				source = "Game";
-				text = widget1.getText();
+				origin = widget1.getText();
 				break;
 			case 229:
 				widget1 = client.getWidget(dialogue, 1);
@@ -308,7 +347,7 @@ public class PolywoofPlugin extends Plugin
 					return;
 
 				source = "Game";
-				text = widget1.getText();
+				origin = widget1.getText();
 				break;
 			case 392:
 				if(!config.enableBooks())
@@ -326,51 +365,65 @@ public class PolywoofPlugin extends Plugin
 
 				for(Widget page : pages)
 					for(Widget children : page.getStaticChildren())
-						if(children.getType() == WidgetType.TEXT && children.getText().length() > 0)
-							book.append(children.getText()).append(" ");
+						if(children.getType() == WidgetType.TEXT)
+							if(children.getText().isEmpty())
+							{
+								switch(paragraph)
+								{
+									case SKIP:
+										paragraph = Paragraph.TYPE;
+										break;
+								}
+							}
+							else
+							{
+								switch(paragraph)
+								{
+									case SKIP:
+										book.append(" ");
+										break;
+									case TYPE:
+										book.append("\n");
+										break;
+								}
+
+								paragraph = Paragraph.SKIP;
+								book.append(children.getText());
+							}
 
 				source = widget1.getText();
-				text = book.toString();
+				origin = book.toString();
 				break;
 			default:
 				previous = null;
 
-				polywoofOverlay.vanish(1);
+				overlay.vanish(1);
 				return;
 		}
 
-		if(text.equals(previous))
+		if(origin.equals(previous))
 			return;
+
+		overlay.vanish(1);
 
 		if(!config.toggle())
 		{
 			previous = null;
-
-			polywoofOverlay.vanish(1);
 			return;
 		}
 
-		previous = text;
+		previous = origin;
 
 		if(config.test())
-		{
-			polywoofOverlay.vanish(1);
-			polywoofOverlay.set(1, (config.sourceName() ? translator.stripTags(source) + config.sourceSeparator() : "") + translator.stripTags(text));
-		}
+			overlay.set(1, separator(source) + PolywoofTranslator.stripTags(origin), options(dialogue));
 		else
-		{
-			translator.translate(translator.stripTags(text), config.language().toLowerCase(), translation ->
-			{
-				polywoofOverlay.vanish(1);
-				polywoofOverlay.set(1, (config.sourceName() ? translator.stripTags(source) + config.sourceSeparator() : "") + translation);
-			});
-		}
+			translator.translate(origin, PolywoofTranslator.language(config.language()), db, text -> overlay.set(1, separator(source) + text, options(dialogue)));
 	}
 
 	@Subscribe
 	public void onMenuOpened(MenuOpened event)
 	{
-		if(!config.button() || !polywoofOverlay.getBounds().contains(client.getMouseCanvasPosition().getX(), client.getMouseCanvasPosition().getY()))
+		if(!config.showButton() || !overlay.getBounds().contains(client.getMouseCanvasPosition().getX(), client.getMouseCanvasPosition().getY()))
 			return;
 
 		client.createMenuEntry(1)
@@ -384,6 +437,25 @@ public class PolywoofPlugin extends Plugin
 				.setTarget(ColorUtil.wrapWithColorTag("Translation", JagexColors.MENU_TARGET))
 				.setType(MenuAction.RUNELITE)
 				.onClick(menuEntry -> config.set_toggle(!config.toggle()));
+	}
+
+	@Provides
+	PolywoofConfig provideConfig(ConfigManager configManager)
+	{
+		return configManager.getConfig(PolywoofConfig.class);
+	}
+
+	public PolywoofComponent.Options options(int dialogue)
+	{
+		if(dialogue == WidgetID.DIALOG_OPTION_GROUP_ID)
+			return config.numberedOptions() ? PolywoofComponent.Options.NUMBERED : PolywoofComponent.Options.DEFAULT;
+
+		return PolywoofComponent.Options.NONE;
+	}
+
+	public String separator(String source)
+	{
+		return config.sourceName() ? PolywoofTranslator.stripTags(source) + config.sourceSeparator() : "";
 	}
 
 	public void usage()
@@ -403,9 +475,10 @@ public class PolywoofPlugin extends Plugin
 		});
 	}
 
-	@Provides
-	PolywoofConfig provideConfig(ConfigManager configManager)
+	private enum Paragraph
 	{
-		return configManager.getConfig(PolywoofConfig.class);
+		NONE,
+		SKIP,
+		TYPE
 	}
 }

@@ -4,8 +4,8 @@ Translation for almost every dialogue and any related text, so you can understan
 
 # Guide
 - You have to register DeepL account and activate free or buy **Developers API**, then you have to copy your token from this [page](https://www.deepl.com/pro-account/summary).
-- After that open plugin settings and paste it into **Token** field, type in your destination language code and choose whatever you want to be translated in **Behavior** section!
-  - [List](https://www.deepl.com/docs-api/simulator) of available languages!
+- After that open plugin settings and paste it into **Token** field, type in your destination language code and choose whatever you want to be translated in **Translation** section!
+  - [List](languages.json) of available languages!
   - Be warned that any additional stuff will use your **API Quota**, so choose wisely.
 
 > *It's still in beta, some things might go wrong..*

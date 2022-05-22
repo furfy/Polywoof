@@ -8,17 +8,17 @@ import java.awt.*;
 @ConfigGroup("polywoof")
 public interface PolywoofConfig extends Config
 {
-	@ConfigSection( name = "Primary", description = "Primary stuff", position = 0 )
+	@ConfigSection( name = "Primary", description = "Most important", position = 0 )
 	String primarySection = "primarySection";
 
-	@ConfigSection( name = "Translate", description = "Translate stuff", position = 1 )
-	String translateSection = "translateSection";
+	@ConfigSection( name = "Translation", description = "What will be translated", position = 1 )
+	String translationSection = "translationSection";
 
-	@ConfigSection( name = "Visual", description = "Visual appearance stuff", position = 2 )
+	@ConfigSection( name = "Visual", description = "Font and visual appearance", position = 2 )
 	String visualSection = "visualSection";
 
-	@ConfigSection( name = "Formatting", description = "Text formatting stuff", position = 3 )
-	String formatSection = "formatSection";
+	@ConfigSection( name = "Formatting", description = "Text formatting", position = 3 )
+	String formattingSection = "formattingSection";
 
 	@ConfigItem( keyName = "toggle", name = "", description = "", hidden = true )
 	default boolean toggle()
@@ -52,14 +52,14 @@ public interface PolywoofConfig extends Config
 		return 10;
 	}
 
-	@ConfigItem( keyName = "showUsage", name = "Print API Usage", description = "See your monthly API usage on logon", section = primarySection, position = 3 )
+	@ConfigItem( keyName = "showUsage", name = "Show API Usage", description = "See your monthly API usage on logon", section = primarySection, position = 3 )
 	default boolean showUsage()
 	{
 		return true;
 	}
 
-	@ConfigItem( keyName = "button", name = "Show Button", description = "Quality of life feature", section = primarySection, position = 4 )
-	default boolean button()
+	@ConfigItem( keyName = "showButton", name = "Show Button", description = "Quality of life feature", section = primarySection, position = 4 )
+	default boolean showButton()
 	{
 		return true;
 	}
@@ -74,37 +74,37 @@ public interface PolywoofConfig extends Config
 		Translate
 	 */
 
-	@ConfigItem( keyName = "enableExamine", name = "Examine", description = "Translate any examine", section = translateSection, position = 0 )
+	@ConfigItem( keyName = "enableExamine", name = "Examine", description = "Translate any examine", section = translationSection, position = 0 )
 	default boolean enableExamine()
 	{
 		return true;
 	}
 
-	@ConfigItem( keyName = "enableChat", name = "Chat Messages", description = "Translate chat messages", section = translateSection, position = 1 )
+	@ConfigItem( keyName = "enableChat", name = "Chat Messages", description = "Translate chat messages", section = translationSection, position = 1 )
 	default boolean enableChat()
 	{
 		return true;
 	}
 
-	@ConfigItem( keyName = "enableOverhead", name = "Overhead Text", description = "Translate overhead text", section = translateSection, position = 2 )
+	@ConfigItem( keyName = "enableOverhead", name = "Overhead Text", description = "Translate overhead text", section = translationSection, position = 2 )
 	default boolean enableOverhead()
 	{
 		return false;
 	}
 
-	@ConfigItem( keyName = "enableClues", name = "Treasure Clues", description = "Translate treasure clues", section = translateSection, position = 3 )
+	@ConfigItem( keyName = "enableClues", name = "Treasure Clues", description = "Translate treasure clues", section = translationSection, position = 3 )
 	default boolean enableClues()
 	{
 		return false;
 	}
 
-	@ConfigItem( keyName = "enableDiary", name = "Quests Diary", description = "Translate quests diary", warning = "It will use a lot of resources to translate! Are you sure?", section = translateSection, position = 4 )
+	@ConfigItem( keyName = "enableDiary", name = "Quests Diary", description = "Translate quests diary", warning = "It will use a lot of resources to translate! Are you sure?", section = translationSection, position = 4 )
 	default boolean enableDiary()
 	{
 		return false;
 	}
 
-	@ConfigItem( keyName = "enableBooks", name = "Books", description = "Translate book pages", warning = "It will use huge amount of resources to translate! Are you sure?", section = translateSection, position = 5 )
+	@ConfigItem( keyName = "enableBooks", name = "Books", description = "Translate book pages", warning = "It will use huge amount of resources to translate! Are you sure?", section = translationSection, position = 5 )
 	default boolean enableBooks()
 	{
 		return false;
@@ -151,19 +151,25 @@ public interface PolywoofConfig extends Config
 	 */
 
 	@Range( min = 32 )
-	@ConfigItem( keyName = "textWrap", name = "Text Wrap Width", description = "Widest text ever", section = formatSection, position = 0 )
+	@ConfigItem( keyName = "textWrap", name = "Text Wrap Width", description = "Widest text ever", section = formattingSection, position = 0 )
 	default int textWrap()
 	{
-		return 480;
+		return 420;
 	}
 
-	@ConfigItem( keyName = "sourceName", name = "Source Name", description = "Tell me who said that", section = formatSection, position = 1 )
+	@ConfigItem( keyName = "numberedOptions", name = "Numbered Options", description = "Let's count up to ten", section = formattingSection, position = 1 )
+	default boolean numberedOptions()
+	{
+		return true;
+	}
+
+	@ConfigItem( keyName = "sourceName", name = "Source Name", description = "Tell me who said that", section = formattingSection, position = 2 )
 	default boolean sourceName()
 	{
 		return true;
 	}
 
-	@ConfigItem( keyName = "sourceSeparator", name = "Source Separator", description = "Between source and text", section = formatSection, position = 2 )
+	@ConfigItem( keyName = "sourceSeparator", name = "Source Separator", description = "Between source and text", section = formattingSection, position = 3 )
 	default String sourceSeparator()
 	{
 		return ": ";

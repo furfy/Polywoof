@@ -21,10 +21,12 @@ dependencies {
 	testImplementation 'junit:junit:4.12'
 	testImplementation group: 'net.runelite', name:'client', version: runeLiteVersion
 	testImplementation group: 'net.runelite', name:'jshell', version: runeLiteVersion
+
+	implementation 'com.h2database:h2:2.1.212'
 }
 
 group = 'com.polywoof'
-version = '0.9b'
+version = '0.10b'
 sourceCompatibility = '1.8'
 
 tasks.withType(JavaCompile) {
