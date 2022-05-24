@@ -1,10 +1,12 @@
 package com.polywoof;
 
 import lombok.extern.slf4j.Slf4j;
+import org.h2.engine.Constants;
 import org.h2.jdbcx.JdbcDataSource;
 
 import javax.annotation.Nullable;
 import javax.annotation.ParametersAreNonnullByDefault;
+import java.io.File;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
@@ -19,17 +21,21 @@ public class PolywoofDB implements AutoCloseable
 {
 	private final Executor executor = Executors.newSingleThreadExecutor();
 	private final JdbcDataSource data = new JdbcDataSource();
-	private final String table;
+	private final String name;
 	private Connection db;
 
-	public PolywoofDB(String table, String filename)
+	public PolywoofDB(String name, File file)
 	{
-		this.table = table;
+		String path = file.getPath();
 
-		this.data.setURL("jdbc:h2:" + filename);
+		if(path.endsWith(Constants.SUFFIX_MV_FILE))
+			path = path.substring(0, path.length() - Constants.SUFFIX_MV_FILE.length());
+
+		this.name = name;
+		this.data.setURL(Constants.START_URL + path);
 	}
 
-	public void open(Result callback)
+	public void open(@Nullable Create callback)
 	{
 		if(status())
 			return;
@@ -40,18 +46,17 @@ public class PolywoofDB implements AutoCloseable
 			{
 				Connection connection = data.getConnection();
 
-				try(PreparedStatement statement = connection.prepareStatement(String.format("CREATE TABLE IF NOT EXISTS `%s` (RUNESCAPE VARCHAR(2048) PRIMARY KEY)", table)))
+				try(PreparedStatement statement = connection.prepareStatement(String.format("CREATE TABLE IF NOT EXISTS `%s` (RUNESCAPE VARCHAR(2048) PRIMARY KEY)", name)))
 				{
 					statement.executeUpdate();
-
 					db = connection;
 
-					callback.result(null);
+					if(callback != null)
+						callback.create();
 				}
 				catch(SQLException error)
 				{
 					error.printStackTrace();
-
 					connection.close();
 				}
 			}
@@ -62,16 +67,16 @@ public class PolywoofDB implements AutoCloseable
 		});
 	}
 
-	public void select(String text, PolywoofTranslator.Language language, Result callback)
+	public void select(String entry, PolywoofTranslator.Language language, @Nullable Select callback)
 	{
 		if(!status())
 			return;
 
 		executor.execute(() ->
 		{
-			try(PreparedStatement statement = db.prepareStatement(String.format("SELECT `%2$s` FROM `%1$s` WHERE RUNESCAPE=? AND `%2$s` IS NOT NULL", table, language.code)))
+			try(PreparedStatement statement = db.prepareStatement(String.format("SELECT `%2$s` FROM `%1$s` WHERE RUNESCAPE=? AND `%2$s` IS NOT NULL", name, language.code)))
 			{
-				statement.setString(1, text);
+				statement.setString(1, entry);
 
 				String string = null;
 				ResultSet result = statement.executeQuery();
@@ -79,7 +84,8 @@ public class PolywoofDB implements AutoCloseable
 				if(result.next())
 					string = result.getString(language.code);
 
-				callback.result(string);
+				if(callback != null)
+					callback.select(string);
 			}
 			catch(SQLException error)
 			{
@@ -88,18 +94,21 @@ public class PolywoofDB implements AutoCloseable
 		});
 	}
 
-	public void insert(String text, String string, PolywoofTranslator.Language language)
+	public void insert(String entry, String string, PolywoofTranslator.Language language, @Nullable Create callback)
 	{
 		if(!status())
 			return;
 
 		executor.execute(() ->
 		{
-			try(PreparedStatement statement = db.prepareStatement(String.format("MERGE INTO `%1$s` (RUNESCAPE, `%2$s`) VALUES(?, ?)", table, language.code)))
+			try(PreparedStatement statement = db.prepareStatement(String.format("MERGE INTO `%1$s` (RUNESCAPE, `%2$s`) VALUES(?, ?)", name, language.code)))
 			{
-				statement.setString(1, text);
+				statement.setString(1, entry);
 				statement.setString(2, string);
 				statement.executeUpdate();
+
+				if(callback != null)
+					callback.create();
 			}
 			catch(SQLException error)
 			{
@@ -108,7 +117,7 @@ public class PolywoofDB implements AutoCloseable
 		});
 	}
 
-	public void update(List<PolywoofTranslator.Language> languages)
+	public void update(List<PolywoofTranslator.Language> languages, @Nullable Update callback)
 	{
 		if(!status())
 			return;
@@ -117,9 +126,12 @@ public class PolywoofDB implements AutoCloseable
 		{
 			for(PolywoofTranslator.Language language : languages)
 			{
-				try(PreparedStatement statement = db.prepareStatement(String.format("ALTER TABLE `%1$s` ADD IF NOT EXISTS `%2$s` VARCHAR(2048)", table, language.code)))
+				try(PreparedStatement statement = db.prepareStatement(String.format("ALTER TABLE `%1$s` ADD IF NOT EXISTS `%2$s` VARCHAR(2048)", name, language.code)))
 				{
 					statement.executeUpdate();
+
+					if(callback != null)
+						callback.update(language);
 				}
 				catch(SQLException error)
 				{
@@ -138,7 +150,6 @@ public class PolywoofDB implements AutoCloseable
 		{
 			try
 			{
-				db.rollback();
 				db.close();
 			}
 			catch(SQLException error)
@@ -162,8 +173,18 @@ public class PolywoofDB implements AutoCloseable
 		return false;
 	}
 
-	interface Result
+	interface Create
 	{
-		void result(@Nullable String string);
+		void create();
+	}
+
+	interface Select
+	{
+		void select(@Nullable String string);
+	}
+
+	interface Update
+	{
+		void update(PolywoofTranslator.Language language);
 	}
 }

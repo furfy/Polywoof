@@ -3,46 +3,46 @@ package com.polywoof;
 import lombok.Getter;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
+import net.runelite.client.ui.JagexColors;
 import net.runelite.client.ui.overlay.OverlayPosition;
+import net.runelite.client.ui.overlay.RenderableEntity;
 import net.runelite.client.ui.overlay.components.ComponentConstants;
-import net.runelite.client.ui.overlay.components.LayoutableRenderableEntity;
 
 import javax.annotation.ParametersAreNonnullByDefault;
 import java.awt.*;
-import java.util.Arrays;
-import java.util.LinkedList;
+import java.util.ArrayList;
+import java.util.List;
 
 @Slf4j
 @ParametersAreNonnullByDefault
-public class PolywoofComponent implements LayoutableRenderableEntity
+public class PolywoofComponent implements RenderableEntity
 {
-	private static final int PADDING = 8;
-	private static final int SPACING = 4;
-	private static final int PARAGRAPH = 8;
-	private static final int OPTION = 6;
-
-	private final LinkedList<LinkedList<String>> paragraphs = new LinkedList<>();
-	private final Rectangle bounds = new Rectangle();
-	private final Options options;
-	private final String text;
-	private final Font font;
-	private FontMetrics metrics;
-	private AlphaComposite alpha = AlphaComposite.getInstance(AlphaComposite.SRC_OVER);
+	public static final int PADDING = 8;
+	public static final int SPACING = 4;
+	public static final int PARAGRAPH = 8;
+	public static final int OPTION = 6;
 
 	@Setter private static int textWrap;
 	@Setter private static boolean textShadow;
 	@Setter private static boolean boxOutline;
 	@Setter private static Color backgroundColor = ComponentConstants.STANDARD_BACKGROUND_COLOR;
+	@Setter @Getter private static Alignment alignment = Alignment.BOTTOM_LEFT;
 
-	@Setter
-	@Getter
-	private static Alignment alignment = Alignment.BOTTOM_LEFT;
+	private final List<List<String>> paragraphs = new ArrayList<>(10);
+	private final Rectangle rectangle = new Rectangle();
+	private final String text;
+	private Font font;
+	private Options options;
+	private AlphaComposite composite = AlphaComposite.getInstance(AlphaComposite.SRC_OVER);
+	private boolean revalidate;
 
 	public PolywoofComponent(String text, Font font, Options options)
 	{
 		this.text = text;
 		this.font = font;
 		this.options = options;
+
+		revalidate();
 	}
 
 	public static void setPosition(OverlayPosition position)
@@ -77,81 +77,92 @@ public class PolywoofComponent implements LayoutableRenderableEntity
 	{
 		int x = 0;
 		int y = 0;
-		int offset = 0;
 
 		switch(alignment)
 		{
 			case TOP_LEFT:
-				x = bounds.x;
-				y = bounds.y;
+				x = rectangle.x;
+				y = rectangle.y;
 				break;
 			case TOP_CENTER:
-				x = bounds.x - bounds.width / 2;
-				y = bounds.y;
+				x = rectangle.x - rectangle.width / 2;
+				y = rectangle.y;
 				break;
 			case TOP_RIGHT:
-				x = bounds.x - bounds.width;
-				y = bounds.y;
+				x = rectangle.x - rectangle.width;
+				y = rectangle.y;
 				break;
 			case BOTTOM_LEFT:
-				x = bounds.x;
-				y = bounds.y - bounds.height;
+				x = rectangle.x;
+				y = rectangle.y - rectangle.height;
 				break;
 			case BOTTOM_CENTER:
-				x = bounds.x - bounds.width / 2;
-				y = bounds.y - bounds.height;
+				x = rectangle.x - rectangle.width / 2;
+				y = rectangle.y - rectangle.height;
 				break;
 			case BOTTOM_RIGHT:
-				x = bounds.x - bounds.width;
-				y = bounds.y - bounds.height;
+				x = rectangle.x - rectangle.width;
+				y = rectangle.y - rectangle.height;
 				break;
 		}
 
-		graphics.setComposite(alpha);
+		graphics.setFont(font);
+		graphics.setComposite(composite);
 		graphics.setColor(backgroundColor);
-		graphics.fillRect(x, y, bounds.width, bounds.height);
+		graphics.fillRect(x, y, rectangle.width, rectangle.height);
 
 		if(boxOutline)
 		{
 			graphics.setColor(backgroundColor.darker());
-			graphics.drawRect(x, y, bounds.width - 1, bounds.height - 1);
+			graphics.drawRect(x, y, rectangle.width - 1, rectangle.height - 1);
 			graphics.setColor(backgroundColor.brighter());
-			graphics.drawRect(x + 1, y + 1, bounds.width - 3, bounds.height - 3);
+			graphics.drawRect(x + 1, y + 1, rectangle.width - 3, rectangle.height - 3);
 		}
 
-		for(LinkedList<String> paragraph : paragraphs)
+		int offset = 0;
+		boolean option = options != Options.NONE;
+
+		for(List<String> paragraph : paragraphs)
 		{
 			for(String line : paragraph)
 			{
+				FontMetrics metrics = graphics.getFontMetrics(font);
+
 				switch(alignment)
 				{
 					case TOP_LEFT:
-						x = bounds.x + PADDING;
-						y = bounds.y + PADDING + offset + metrics.getAscent();
+					case BOTTOM_LEFT:
+						if(option)
+							x = rectangle.x + rectangle.width / 2 - metrics.stringWidth(line) / 2;
+						else
+							x = rectangle.x + PADDING;
 						break;
 					case TOP_CENTER:
-						x = bounds.x - metrics.stringWidth(line) / 2;
-						y = bounds.y + PADDING + offset + metrics.getAscent();
+					case BOTTOM_CENTER:
+						x = rectangle.x - metrics.stringWidth(line) / 2;
 						break;
 					case TOP_RIGHT:
-						x = bounds.x - PADDING - metrics.stringWidth(line);
-						y = bounds.y + PADDING + offset + metrics.getAscent();
-						break;
-					case BOTTOM_LEFT:
-						x = bounds.x + PADDING;
-						y = bounds.y + PADDING + offset + metrics.getAscent() - bounds.height;
-						break;
-					case BOTTOM_CENTER:
-						x = bounds.x - metrics.stringWidth(line) / 2;
-						y = bounds.y + PADDING + offset + metrics.getAscent() - bounds.height;
-						break;
 					case BOTTOM_RIGHT:
-						x = bounds.x - PADDING - metrics.stringWidth(line);
-						y = bounds.y + PADDING + offset + metrics.getAscent() - bounds.height;
+						if(option)
+							x = rectangle.x - rectangle.width / 2 - metrics.stringWidth(line) / 2;
+						else
+							x = rectangle.x - PADDING - metrics.stringWidth(line);
 						break;
 				}
 
-				graphics.setFont(font);
+				switch(alignment)
+				{
+					case TOP_LEFT:
+					case TOP_RIGHT:
+					case TOP_CENTER:
+						y = rectangle.y + PADDING + offset + metrics.getAscent();
+						break;
+					case BOTTOM_LEFT:
+					case BOTTOM_CENTER:
+					case BOTTOM_RIGHT:
+						y = rectangle.y + PADDING + offset + metrics.getAscent() - rectangle.height;
+						break;
+				}
 
 				if(textShadow)
 				{
@@ -159,92 +170,111 @@ public class PolywoofComponent implements LayoutableRenderableEntity
 					graphics.drawString(line, x + 1, y + 1);
 				}
 
-				graphics.setColor(Color.WHITE);
+				graphics.setColor(option ? JagexColors.MENU_TARGET : Color.WHITE);
 				graphics.drawString(line, x, y);
 
 				offset += metrics.getAscent() + SPACING;
 			}
 
 			offset += (options == Options.NONE ? PARAGRAPH : OPTION) - SPACING;
+			option = false;
 		}
 
-		return bounds.getSize();
+		return null;
 	}
 
-	@Override
-	public Rectangle getBounds()
+	public Dimension getSize()
 	{
-		return bounds;
-	}
-
-	@Override
-	public void setPreferredLocation(Point location)
-	{
-		setLocation(location.x, location.y);
-	}
-
-	@Override
-	public void setPreferredSize(Dimension dimension)
-	{
-		setSize(dimension.width);
+		return rectangle.getSize();
 	}
 
 	public void setLocation(int x, int y)
 	{
-		bounds.setLocation(x, y);
+		rectangle.setLocation(x, y);
 	}
 
-	public void setSize(int width)
+	public void setFontSize(int size)
 	{
-		setTextWrap(width);
-		update();
+		if(size == font.getSize())
+			return;
+
+		font = font.deriveFont((float) size);
+	}
+
+	public void setNumberedOptions(boolean numbered)
+	{
+		if(options == Options.NONE)
+			return;
+
+		options = numbered ? Options.NUMBERED : Options.DEFAULT;
 	}
 
 	public void setAlpha(float alpha)
 	{
-		this.alpha = AlphaComposite.getInstance(AlphaComposite.SRC_OVER, alpha);
+		composite = composite.derive(alpha);
 	}
 
 	public void update(Graphics2D graphics)
 	{
-		metrics = graphics.getFontMetrics(font);
-
-		if(paragraphs.isEmpty())
-			update();
-	}
-
-	public void update()
-	{
-		if(metrics == null)
+		if(!revalidate)
 			return;
 
-		int index = -1;
-		LinkedList<String> list = new LinkedList<>(Arrays.asList(text.split("\n")));
+		revalidate = false;
 
 		paragraphs.clear();
+		rectangle.setSize(0, 0);
 
-		for(String paragraph : list)
+		int index = -1;
+
+		for(String split : text.split("\n"))
 		{
-			LinkedList<String> lines = new LinkedList<>();
+			List<String> paragraph = new ArrayList<>(10);
+			paragraphs.add(paragraph);
 
-			if(options == Options.NUMBERED)
-				lines.add(++index == 0 ? paragraph : String.format("%d. %s", index, paragraph));
+			if(options == Options.NUMBERED && ++index != 0)
+				paragraph.add(String.format("%d. %s", index, split));
 			else
-				lines.add(paragraph);
+				paragraph.add(split);
 
-			for(int l = 0; l < lines.size(); l++)
+			FontMetrics metrics = graphics.getFontMetrics(font);
+
+			for(int l = 0; l < paragraph.size(); l++)
 			{
-				StringBuilder compare = new StringBuilder();
-				String line = lines.get(l);
+				String line = paragraph.get(l);
+				int length = metrics.stringWidth(line);
 
-				int logical = 0;
-				int typical = 0;
+				if(length <= textWrap - PADDING * 2)
+				{
+					rectangle.width = Math.max(rectangle.width, length);
+					continue;
+				}
+
+				int wrap = 0;
+				int word = 0;
 
 				for(int i = 0; i < line.length(); i++)
 				{
-					char at = line.charAt(i);
+					if(metrics.stringWidth(line.substring(0, i + 1)) > textWrap - PADDING * 2)
+					{
+						int cut = Math.min(wrap, word);
 
-					switch(at)
+						if(cut == 0)
+							if((cut = Math.max(wrap, word)) == 0)
+								break;
+
+						String begin = line.substring(0, cut);
+						String end = line.substring(cut);
+
+						paragraph.set(l, begin);
+
+						if(!end.isEmpty())
+							paragraph.add(l + 1, end);
+
+						rectangle.width = Math.max(rectangle.width, metrics.stringWidth(begin));
+						break;
+					}
+
+					switch(line.charAt(i))
 					{
 						case ' ':
 						case '.':
@@ -252,56 +282,31 @@ public class PolywoofComponent implements LayoutableRenderableEntity
 						case ':':
 						case ';':
 						case '-':
-							logical = i;
-							typical = 0;
+							wrap = i + 1;
+							word = 0;
 							break;
 						default:
-							typical = i;
+							word = i;
 							break;
-					}
-
-					compare.append(at);
-
-					if(metrics.stringWidth(compare.toString()) > textWrap)
-					{
-						int cut = Math.min(logical, typical);
-
-						if(cut == 0)
-						{
-							cut = Math.max(logical, typical);
-
-							if(cut == 0)
-								break;
-						}
-
-						String begin = line.substring(0, cut + 1);
-						String end = line.substring(cut + 1);
-
-						lines.set(l, begin);
-
-						if(!end.isEmpty())
-							lines.add(l + 1, end);
-						break;
 					}
 				}
 			}
 
-			paragraphs.add(lines);
+			rectangle.height += metrics.getAscent() * paragraph.size() + SPACING * (paragraph.size() - 1);
 		}
 
-		bounds.width = 0;
-		bounds.height = PADDING * 2 + (options == Options.NONE ? PARAGRAPH : OPTION) * (paragraphs.size() - 1);
+		rectangle.width += PADDING * 2;
+		rectangle.height += PADDING * 2 + (options == Options.NONE ? PARAGRAPH : OPTION) * (paragraphs.size() - 1);
 
-		for(LinkedList<String> paragraph : paragraphs)
-		{
-			for(String line : paragraph)
-				bounds.width = Math.max(bounds.width, metrics.stringWidth(line) + PADDING * 2);
-
-			bounds.height += metrics.getAscent() * paragraph.size() + SPACING * (paragraph.size() - 1);
-		}
+		log.info("[{}x{}]", rectangle.width, rectangle.height);
 	}
 
-	public enum Alignment
+	public void revalidate()
+	{
+		revalidate = true;
+	}
+
+	enum Alignment
 	{
 		TOP_LEFT,
 		TOP_CENTER,
@@ -311,7 +316,7 @@ public class PolywoofComponent implements LayoutableRenderableEntity
 		BOTTOM_RIGHT
 	}
 
-	public enum Options
+	enum Options
 	{
 		NONE,
 		DEFAULT,
