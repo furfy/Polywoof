@@ -11,153 +11,179 @@ import java.util.regex.Pattern;
 
 @Slf4j
 @ParametersAreNonnullByDefault
-class PolywoofFormatter
+public class PolywoofFormatter
 {
-	public static final ParsePattern[] CHAT =
+	public static final BlockEntry[] messageEntries =
 	{
-		new ParsePattern("^[0-9,]+ x (Coins\\.)$", "%s"),
-		new ParsePattern("^Your .+ lap count is: <col=[0-9A-f]+>[0-9,]+</col>\\.$"),
-		new ParsePattern("^You can inflict [0-9,]+ more points of damage before a ring will shatter\\.$"),
-		new ParsePattern("^(Your reward is:) <col=[0-9A-f]+>[0-9,]+</col> x (<col=[0-9A-f]+>.+</col>\\.)$", "%s %s"),
-		new ParsePattern("^(Your reward is:) <col=[0-9A-f]+>[0-9,]+</col> x (<col=[0-9A-f]+>.+</col> and it has been placed on the ground\\.)$", "%s %s"),
-		new ParsePattern("^You have opened the Brimstone chest once\\.$"),
-		new ParsePattern("^You have opened the Brimstone chest [0-9,]+ times\\.$"),
-		new ParsePattern("^Congratulations, you've just advanced your .+ level\\. You are now level [0-9,]+\\.$"),
-		new ParsePattern("^Congratulations, you've reached a total level of [0-9,]+\\.$"),
-		new ParsePattern("^Congratulations, you've completed .+ combat task: <col=[0-9A-f]+>.+</col>\\.$"),
-		new ParsePattern("^<col=[0-9A-f]+>Well done! You have completed .+ task in the .+ area\\. Your Achievement Diary has been updated\\.</col>$"),
-		new ParsePattern("^(<col=[0-9A-f]+>You're assigned to kill </col>.+<col=[0-9A-f]+>); only </col>[0-9,]+<col=[0-9A-f]+> more to go\\.$", "%s."),
-		new ParsePattern("^<col=[0-9A-f]+>You've completed </col>[0-9,]+ tasks <col=[0-9A-f]+>in a row and currently have a total of </col>[0-9,]+ points<col=[0-9A-f]+>\\.$"),
-		new ParsePattern("^(<col=[0-9A-f]+>You have completed your task! You killed</col>) [0-9,]+ (.+<col=[0-9A-f]+>\\.) You gained</col> [0-9,]+ xp<col=[0-9A-f]+>\\.$", "%s %s"),
-		new ParsePattern("^<col=[0-9A-f]+>You've completed </col>[0-9,]+ tasks <col=[0-9A-f]+>and received </col>[0-9,]+ points<col=[0-9A-f]+>, giving you a total of </col>[0-9,]+<col=[0-9A-f]+>; return to a Slayer master\\.</col>$"),
-		new ParsePattern("^You've been awarded [0-9,]+ bonus Runecraft XP for closing the rift\\.$"),
-		new ParsePattern("^Amount of rifts you have closed: <col=[0-9A-f]+>[0-9,]+</col>\\.$"),
-		new ParsePattern("^Total elemental energy: <col=[0-9A-f]+>[0-9,]+</col>\\. Total catalytic energy:  <col=[0-9A-f]+>[0-9,]+</col>\\.$"),
-		new ParsePattern("^Elemental energy attuned: <col=[0-9A-f]+>[0-9,]+</col>\\. Catalytic energy attuned: <col=[0-9A-f]+>[0-9,]+</col>\\.$"),
-		new ParsePattern("^<col=[0-9A-f]+>.+ received a drop: .+</col>$")
+		new BlockEntry("^[0-9,]+ x (Coins\\.)$", "%s"),
+		new BlockEntry("^You gain [0-9,]+ .+ XP\\.$", null),
+		new BlockEntry("^Your .+ lap count is:", null),
+		new BlockEntry("^You can inflict [0-9,]+ more points of damage before a ring will shatter\\.$", null),
+		new BlockEntry("^You can smelt [0-9,]+ more pieces of iron ore before a ring melts\\.$", null),
+		new BlockEntry("^Your reward is:", null),
+		new BlockEntry("^You have opened the Brimstone chest", null),
+		new BlockEntry("^Congratulations, you've just advanced your .+ level\\.", null),
+		new BlockEntry("^Congratulations, you've reached a total level of [0-9,]+\\.$", null),
+		new BlockEntry("^Congratulations, you've completed .+ combat task:", null),
+		new BlockEntry("^<col.+?>Well done! You have completed .+ task in the .+ area\\.", null),
+		new BlockEntry("^<col.+?>You're assigned to kill </col>.+<col.+?>;", null),
+		new BlockEntry("^<col.+?>You have completed your task! You killed</col> [0-9,]+ .+<col.+?>\\.", null),
+		new BlockEntry("^<col.+?>You've completed </col>[0-9,]+ tasks <col.+?>", null),
+		new BlockEntry("^You've been awarded [0-9,]+ bonus Runecraft XP for closing the rift\\.$", null),
+		new BlockEntry("^Amount of rifts you have closed:", null),
+		new BlockEntry("^Total elemental energy:", null),
+		new BlockEntry("^Elemental energy attuned:", null),
+		new BlockEntry("^.+: currently costs [0-9,]+ coins\\.$", null),
+		new BlockEntry("^<col.+?>Valuable drop:", null),
+		new BlockEntry("^<col.+?>.+ received a drop:", null)
 	};
 
-	public static final ParsePattern[] DIALOGUE =
+	public static final BlockEntry[] overheadEntries =
 	{
-		new ParsePattern("^(Congratulations, you've just advanced your .+ level\\.) You are now level [0-9,]+\\.$", "%s"),
-		new ParsePattern("^(Your brain power serves you well!<br>You have been awarded) [0-9,]+ (.+ experience!)$", "%s %s"),
-		new ParsePattern("^(Your new task is to kill) [0-9,]+ (.+\\.)$", "%s %s"),
-		new ParsePattern("^(You're currently assigned to kill .+); only<br>[0-9,]+ more to go\\. Your reward point tally is [0-9,]+\\.$", "%s."),
-		new ParsePattern("^Select an Option\nExchange '.+': 5 coins\n.*Cancel$")
+		new BlockEntry("^[0-9,]+$", null)
 	};
 
-	public static final ParsePattern[] OVERHEAD =
+	public static final BlockEntry[] dialogueEntries =
 	{
-		new ParsePattern("^[0-9,]+$")
+		new BlockEntry("^(Congratulations, you've just advanced your .+ level\\.)", "%s"),
+		new BlockEntry("^(Your wish has been granted!<br>You have been awarded) [0-9,]+ (.+ experience!)$", "%s %s"),
+		new BlockEntry("^(Your brain power serves you well!<br>You have been awarded) [0-9,]+ (.+ experience!)$", "%s %s"),
+		new BlockEntry("^(Your new task is to kill) [0-9,]+ (.+\\.)$", "%s %s"),
+		new BlockEntry("^(You're currently assigned to kill .+);", "%s."),
+		new BlockEntry("^Select an Option\nExchange '.+': 5 coins\n", null),
+		new BlockEntry("^Phials converts your banknotes?\\.$", null),
+		new BlockEntry("^Status: [0-9,]+ damage points left\\.\nBreak the ring\\.", null),
+		new BlockEntry("^The ring is fully charged\\.<br>There would be no point in breaking it\\.$", null),
+		new BlockEntry("^The ring shatters\\. Your next ring of recoil will start<br>afresh from [0-9,]+ damage points\\.$", null)
 	};
 
-	public static String parse(String origin, ParsePattern[] patterns)
+	private static final Pattern[] filterPatterns =
 	{
-		for(ParsePattern pattern : patterns)
+		Pattern.compile("<br>"),
+		Pattern.compile("<.*?>"),
+		Pattern.compile("  +")
+	};
+
+	public static void parser(@Nullable String string, BlockEntry[] entries, Parsable callback)
+	{
+		if(string == null)
+			return;
+
+		for(BlockEntry entry : entries)
 		{
-			Matcher matcher = pattern.match.matcher(origin);
+			Matcher matcher = entry.pattern.matcher(string);
 
 			if(matcher.matches())
 			{
-				if(pattern.replacement == null)
-					return null;
+				if(entry.replacement == null)
+					return;
 
 				Object[] groups = new Object[matcher.groupCount()];
 
 				for(int i = 0; i < matcher.groupCount(); i++)
 					groups[i] = matcher.group(i + 1);
 
-				return String.format(pattern.replacement, groups);
+				callback.parse(String.format(entry.replacement, groups));
 			}
 		}
 
-		return origin;
+		callback.parse(string);
 	}
 
-	public static String filter(String origin)
+	public static String filter(@Nullable String string)
 	{
-		return origin.replaceAll("<br>", " ").replaceAll("<.*?>", "").replaceAll("[ ]{2,}", " ").trim();
+		if(string == null)
+			return null;
+
+		string = filterPatterns[0].matcher(string).replaceAll(" ");
+		string = filterPatterns[1].matcher(string).replaceAll("");
+		string = filterPatterns[2].matcher(string).replaceAll(" ").trim();
+
+		return string;
 	}
 
-	public static String options(Widget[] widgets)
+	public static String formatOptions(Widget ... options)
 	{
+		int inserter = 0;
 		StringBuilder builder = new StringBuilder(100);
-		Paragraph paragraph = Paragraph.NONE;
 
-		for(Widget widget : widgets)
-			if(widget.getType() == WidgetType.TEXT && !widget.getText().isEmpty())
+		for(Widget option : options)
+		{
+			if(option.getType() == WidgetType.TEXT && !option.getText().isEmpty())
 			{
-				switch(paragraph)
+				switch(inserter)
 				{
-					case INSERT:
+					case 0:
+						inserter = 1;
+						break;
+					case 1:
 						builder.append("\n");
 						break;
 				}
 
-				builder.append(widget.getText());
-				paragraph = Paragraph.INSERT;
+				builder.append(option.getText());
 			}
+		}
 
 		return builder.toString();
 	}
 
-	public static String scrolls(Widget[] ... widgetsArray)
+	public static String formatScrolls(Widget[] ... scrolls)
 	{
+		int inserter = -1;
 		StringBuilder builder = new StringBuilder(100);
-		Paragraph paragraph = Paragraph.NONE;
 
-		for(Widget[] widgets : widgetsArray)
-			for(Widget widget : widgets)
-				if(widget.getType() == WidgetType.TEXT)
-					if(widget.getText().isEmpty())
+		for(Widget[] scroll : scrolls)
+		{
+			for(Widget line : scroll)
+			{
+				if(line.getType() == WidgetType.TEXT)
+				{
+					if(line.getText().isEmpty())
 					{
-						switch(paragraph)
+						switch(inserter)
 						{
-							case IGNORE:
-								paragraph = Paragraph.INSERT;
+							case 0:
+								inserter = 1;
 								break;
 						}
 					}
 					else
 					{
-						switch(paragraph)
+						switch(inserter)
 						{
-							case IGNORE:
+							case 0:
 								builder.append(" ");
 								break;
-							case INSERT:
+							case 1:
 								builder.append("\n");
 								break;
 						}
 
-						builder.append(widget.getText());
-						paragraph = Paragraph.IGNORE;
+						inserter = 0;
+						builder.append(line.getText());
 					}
+				}
+			}
+		}
 
 		return builder.toString();
 	}
 
-	public static class ParsePattern
+	interface Parsable
 	{
-		public final Pattern match;
-		public final String replacement;
-
-		public ParsePattern(String match)
-		{
-			this(match, null);
-		}
-
-		public ParsePattern(String match, @Nullable String replacement)
-		{
-			this.match = Pattern.compile(match, Pattern.DOTALL);
-			this.replacement = replacement;
-		}
+		void parse(String replacement);
 	}
 
-	enum Paragraph
+	public static class BlockEntry
 	{
-		NONE,
-		IGNORE,
-		INSERT
+		public final Pattern pattern;
+		public final String replacement;
+
+		public BlockEntry(String pattern, @Nullable String replacement)
+		{
+			this.pattern = Pattern.compile(pattern, Pattern.DOTALL);
+			this.replacement = replacement;
+		}
 	}
 }

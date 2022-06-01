@@ -6,12 +6,12 @@ import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 import net.runelite.api.Client;
 import net.runelite.client.ui.overlay.Overlay;
-import net.runelite.client.ui.overlay.OverlayPosition;
 import net.runelite.client.ui.overlay.tooltip.Tooltip;
 import net.runelite.client.ui.overlay.tooltip.TooltipManager;
 import net.runelite.client.util.ColorUtil;
 import net.runelite.client.util.ImageUtil;
 
+import javax.annotation.Nullable;
 import javax.annotation.ParametersAreNonnullByDefault;
 import javax.inject.Inject;
 import java.awt.*;
@@ -25,13 +25,16 @@ import java.util.Map;
 @ParametersAreNonnullByDefault
 public class PolywoofOverlay extends Overlay
 {
-	public static final int SPACING = 4;
-	public static final int CAPACITY = 10;
-	public static final BufferedImage IMAGE = ImageUtil.loadImageResource(PolywoofPlugin.class, "/button.png");
+	private static final BufferedImage buttonImage = ImageUtil.loadImageResource(PolywoofPlugin.class, "/button.png");
+	private static final Tooltip[] tooltips =
+	{
+		new Tooltip("Polywoof is " + ColorUtil.wrapWithColorTag("Off", Color.RED)),
+		new Tooltip("Polywoof is " + ColorUtil.wrapWithColorTag("On", Color.GREEN))
+	};
 
-	private final Map<Byte, Box> permanent = new HashMap<>(PolywoofPlugin.ID.CAPACITY);
-	private final List<Box> temporary = new ArrayList<>(CAPACITY);
 	private final Rectangle rectangle = new Rectangle(0, 0, 30, 30);
+	private final Map<String, Subtitle> permanent = new HashMap<>(1);
+	private final List<Subtitle> temporary = new ArrayList<>(9);
 	private Font font;
 	private AlphaComposite composite = AlphaComposite.getInstance(AlphaComposite.SRC_OVER);
 
@@ -43,89 +46,74 @@ public class PolywoofOverlay extends Overlay
 	@Override
 	public Dimension render(Graphics2D graphics)
 	{
-		List<Box> copy = new ArrayList<>(permanent.size() + temporary.size());
-
-		copy.addAll(permanent.values());
-		copy.addAll(temporary);
-
-		PolywoofComponent.setPosition(getCurrentPosition());
-
 		if(config.showButton() && !mouseOver)
 		{
 			graphics.setComposite(composite = composite.derive(0.1f));
-			graphics.drawImage(IMAGE, rectangle.x, rectangle.y, rectangle.width, rectangle.height, null);
+			graphics.drawImage(buttonImage, 0, 0, rectangle.width, rectangle.height, null);
 		}
+
+		List<Subtitle> copy = new ArrayList<>(permanent.size() + temporary.size());
+		copy.addAll(permanent.values());
+		copy.addAll(temporary);
+
+		if(!copy.isEmpty())
+			PolywoofComponent.setPosition(getPreferredPosition() == null ? getPosition() : getPreferredPosition());
 
 		int offset = 0;
 
-		for(Box box : copy)
+		for(Subtitle subtitle : copy)
 		{
-			if(box.timestamp != 0)
+			if(subtitle.timestamp != 0)
 			{
-				long difference = Math.max(0, box.timestamp - System.currentTimeMillis());
+				long difference = Math.max(0, subtitle.timestamp - System.currentTimeMillis());
 
 				if(difference == 0)
 				{
-					temporary.remove(box);
+					temporary.remove(subtitle);
 					continue;
 				}
 
-				box.component.setAlpha(Math.min(1000f, difference) / 1000f);
+				subtitle.component.setAlpha(Math.min(1000f, difference) / 1000f);
 			}
-
-			box.component.update(graphics);
-
-			int x = 0;
-			int y = 0;
 
 			switch(PolywoofComponent.getAlignment())
 			{
 				case TOP_LEFT:
-					x = 0;
-					y = offset;
-					offset += box.component.getSize().height + SPACING;
+					subtitle.component.setLocation(rectangle.x, rectangle.y + offset);
 					break;
 				case TOP_CENTER:
-					x = rectangle.width / 2;
-					y = offset;
-					offset += box.component.getSize().height + SPACING;
+					subtitle.component.setLocation(rectangle.width / 2, rectangle.y + offset);
 					break;
 				case TOP_RIGHT:
-					x = rectangle.width;
-					y = offset;
-					offset += box.component.getSize().height + SPACING;
+					subtitle.component.setLocation(rectangle.width - rectangle.x, rectangle.y + offset);
 					break;
 				case BOTTOM_LEFT:
-					x = 0;
-					y = offset + rectangle.height;
-					offset -= box.component.getSize().height + SPACING;
+					subtitle.component.setLocation(rectangle.x, rectangle.height - rectangle.y - offset);
 					break;
 				case BOTTOM_CENTER:
-					x = rectangle.width / 2;
-					y = offset + rectangle.height;
-					offset -= box.component.getSize().height + SPACING;
+					subtitle.component.setLocation(rectangle.width / 2, rectangle.height - rectangle.y - offset);
 					break;
 				case BOTTOM_RIGHT:
-					x = rectangle.width;
-					y = offset + rectangle.height;
-					offset -= box.component.getSize().height + SPACING;
+					subtitle.component.setLocation(rectangle.width - rectangle.x, rectangle.height - rectangle.y - offset);
 					break;
 			}
 
-			box.component.setLocation(rectangle.x + x, rectangle.y + y);
-			box.component.render(graphics);
+			offset += subtitle.component.render(graphics).height + 4;
 		}
 
-		if(config.showButton() && mouseOver)
+		if(mouseOver)
 		{
-			graphics.setComposite(composite = composite.derive(1f));
-			graphics.drawImage(IMAGE, rectangle.x, rectangle.y, rectangle.width, rectangle.height, null);
+			if(config.showButton())
+			{
+				graphics.setComposite(composite = composite.derive(1f));
+				graphics.drawImage(buttonImage, 0, 0, rectangle.width, rectangle.height, null);
 
-			if(!client.isMenuOpen())
-				tooltipManager.addFront(new Tooltip("Polywoof is " + (config.toggle() ? ColorUtil.wrapWithColorTag("On", Color.GREEN) : ColorUtil.wrapWithColorTag("Off", Color.RED))));
+				if(!client.isMenuOpen())
+					tooltipManager.add(tooltips[config.toggle() ? 1 : 0]);
+			}
+
+			mouseOver = false;
 		}
-
-		mouseOver = false;
 
 		return rectangle.getSize();
 	}
@@ -145,73 +133,79 @@ public class PolywoofOverlay extends Overlay
 		PolywoofComponent.setTextShadow(config.textShadow());
 		PolywoofComponent.setBoxOutline(config.overlayOutline());
 		PolywoofComponent.setBackgroundColor(config.overlayColor());
+		PolywoofComponent.setBehaviour(config.textAlignment());
 
-		for(Box box : permanent.values())
+		for(Subtitle subtitle : permanent.values())
 		{
-			box.component.setFontSize(config.fontSize());
-			box.component.setNumberedOptions(config.numberedOptions());
-			box.component.revalidate();
+			subtitle.component.setFontSize(config.fontSize());
+			subtitle.component.setHeaderSubject(config.sourceName());
+			subtitle.component.setNumberedSubject(config.numberedOptions());
+			subtitle.component.revalidate();
 		}
 
-		for(Box box : temporary)
+		for(Subtitle subtitle : temporary)
 		{
-			box.component.setFontSize(config.fontSize());
-			box.component.setNumberedOptions(config.numberedOptions());
-			box.component.revalidate();
+			subtitle.component.setFontSize(config.fontSize());
+			subtitle.component.setHeaderSubject(config.sourceName());
+			subtitle.component.setNumberedSubject(config.numberedOptions());
+			subtitle.component.revalidate();
 		}
 	}
 
-	public OverlayPosition getCurrentPosition()
+	public void put(@Nullable String header, String string, PolywoofComponent.Subject subject)
 	{
-		return getPreferredPosition() == null ? getPosition() : getPreferredPosition();
-	}
-
-	public long readingSpeed(String text)
-	{
-		return (long) (1000f * text.length() * (1f / config.readingSpeed()));
-	}
-
-	public void put(String text)
-	{
-		if(text.isEmpty())
+		if(string.isEmpty())
 			return;
 
-		if(temporary.size() >= CAPACITY)
+		if(temporary.size() >= 9)
 			temporary.remove(temporary.size() - 1);
 
-		temporary.add(0, new Box(System.currentTimeMillis() + 1500L + readingSpeed(text), new PolywoofComponent(text, font, PolywoofComponent.Options.NONE)));
+		temporary.add(0, Subtitle.temporary(new PolywoofComponent(header, string, font, subject), System.currentTimeMillis() + 1500L + (long) (string.length() * 1000f * (1f / config.readingSpeed()))));
 	}
 
-	public void set(byte id, String text, PolywoofComponent.Options options)
+	public void set(@Nullable String key, @Nullable String header, String string, PolywoofComponent.Subject subject)
 	{
-		if(text.isEmpty())
+		if(string.isEmpty())
 			return;
 
-		permanent.put(id, new Box(0, new PolywoofComponent(text, font, options)));
+		if(permanent.containsKey(key))
+			pop(key);
+
+		permanent.put(key, Subtitle.permanent(new PolywoofComponent(header, string, font, subject)));
 	}
 
-	public void clear(byte id)
+	public void pop(@Nullable String key)
 	{
-		if(!permanent.containsKey(id))
+		if(!permanent.containsKey(key))
 			return;
 
-		if(temporary.size() >= CAPACITY)
+		if(temporary.size() >= 9)
 			temporary.remove(temporary.size() - 1);
 
-		temporary.add(0, new Box(System.currentTimeMillis() + 1500L, permanent.get(id).component));
-		permanent.remove(id);
+		temporary.add(0, Subtitle.temporary(permanent.get(key).component, System.currentTimeMillis() + 1500L));
+		permanent.remove(key);
 	}
 
-	public void clear()
+	public void reset()
 	{
 		permanent.clear();
 		temporary.clear();
 	}
 
 	@AllArgsConstructor(access = AccessLevel.PRIVATE)
-	public static class Box
+	public static class Subtitle
 	{
-		public final long timestamp;
 		public final PolywoofComponent component;
+		public final long timestamp;
+
+		public static Subtitle permanent(PolywoofComponent component)
+		{
+			return new Subtitle(component, 0);
+		}
+
+		public static Subtitle temporary(PolywoofComponent component, long timestamp)
+		{
+			return new Subtitle(component, timestamp);
+		}
 	}
 }

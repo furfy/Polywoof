@@ -4,8 +4,6 @@ import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
-import lombok.AccessLevel;
-import lombok.AllArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import net.runelite.client.RuneLite;
 import okhttp3.*;
@@ -23,61 +21,75 @@ import java.util.List;
 public class PolywoofTranslator
 {
 	private static final JsonParser parser = new JsonParser();
-	private static final List<Language> trusted = new ArrayList<>(30);
-	private static final List<Language> offline = languageLoader(PolywoofPlugin.class, "/languages.json");
+	private static final List<PolywoofStorage.Language> trusted = new ArrayList<>(30);
+	private static final List<PolywoofStorage.Language> offline = languageLoader(PolywoofPlugin.class, "/languages.json");
+
 	private final OkHttpClient client;
+	private final PolywoofStorage storage;
 	private String URL;
 	private String key;
 
-	public PolywoofTranslator(OkHttpClient client, String auth)
+	public PolywoofTranslator(OkHttpClient client, PolywoofStorage storage, String auth)
 	{
 		this.client = client;
+		this.storage = storage;
 		this.update(auth);
 	}
 
-	public static List<Language> languageLoader(Class<?> c, String resource)
+	public static synchronized List<PolywoofStorage.Language> languageLoader(Class<?> reflection, String resource)
 	{
-		try(InputStream stream = c.getResourceAsStream(resource))
+		try(InputStream stream = reflection.getResourceAsStream(resource))
 		{
 			if(stream == null)
-				throw new Exception("Failed to load languages from the resource");
+				throw new IllegalArgumentException();
 
-			JsonArray json = parser.parse(new InputStreamReader(stream)).getAsJsonArray();
-			List<Language> output = new ArrayList<>(json.size());
+			try(InputStreamReader reader = new InputStreamReader(stream))
+			{
+				JsonArray json = parser.parse(reader).getAsJsonArray();
+				List<PolywoofStorage.Language> output = new ArrayList<>(json.size());
 
-			for(JsonElement element : json)
-				output.add(new OfflineLanguage(element.getAsJsonObject().get("language").getAsString(), element.getAsJsonObject().get("name").getAsString()));
+				for(JsonElement element : json)
+					output.add(new OfflineLanguage(element.getAsJsonObject().get("language").getAsString(), element.getAsJsonObject().get("name").getAsString()));
 
-			return output;
+				return output;
+			}
 		}
-		catch(Exception error)
+		catch(IOException error)
 		{
-			error.printStackTrace();
+			log.error("Failed to load languages from the resource", error);
 			return new ArrayList<>(0);
 		}
 	}
 
-	public static Language languageFinder(String search)
+	public static PolywoofStorage.Language languageFinder(String search)
 	{
-		String string = search.trim().toUpperCase();
+		search = search.trim().toUpperCase();
 
-		for(Language language : trusted)
-			if(language.code.equalsIgnoreCase(string))
+		for(PolywoofStorage.Language language : trusted)
+			if(language.toString().toUpperCase().equals(search))
 				return language;
 
-		for(Language language : trusted)
-			if(language.name.toUpperCase().startsWith(string))
+		for(PolywoofStorage.Language language : offline)
+			if(language.toString().toUpperCase().equals(search))
 				return language;
 
-		for(Language language : offline)
-			if(language.code.equalsIgnoreCase(string))
+		for(PolywoofStorage.Language language : trusted)
+			if(language.name.toUpperCase().startsWith(search))
 				return language;
 
-		for(Language language : offline)
-			if(language.name.toUpperCase().startsWith(string))
+		for(PolywoofStorage.Language language : offline)
+			if(language.name.toUpperCase().startsWith(search))
 				return language;
 
-		return new UnknownLanguage(string);
+		for(PolywoofStorage.Language language : trusted)
+			if(language.name.toUpperCase().contains(search))
+				return language;
+
+		for(PolywoofStorage.Language language : offline)
+			if(language.name.toUpperCase().contains(search))
+				return language;
+
+		return new UnknownLanguage(search);
 	}
 
 	private static void handleCode(int code) throws Exception
@@ -107,7 +119,7 @@ public class PolywoofTranslator
 		}
 	}
 
-	private void post(String path, RequestBody request, Receive callback)
+	private void post(String path, RequestBody request, Receivable callback)
 	{
 		if(key.isEmpty())
 			return;
@@ -129,7 +141,7 @@ public class PolywoofTranslator
 				@Override
 				public void onFailure(Call call, IOException error)
 				{
-					error.printStackTrace();
+					log.error("Failed to receive the API response", error);
 				}
 
 				@Override
@@ -146,54 +158,65 @@ public class PolywoofTranslator
 					}
 					catch(Exception error)
 					{
-						error.printStackTrace();
+						log.error("Failed to proceed the API response", error);
 					}
 				}
 			});
 		}
 		catch(IOException error)
 		{
-			error.printStackTrace();
+			log.error("Failed to create the API request", error);
 		}
 	}
 
-	public void translate(String text, Language language, PolywoofDB db, Translate callback)
+	public void translate(String string, PolywoofStorage.Language language, PolywoofStorage.DataType type, Translatable callback)
 	{
-		if(text.isEmpty() || language instanceof UnknownLanguage)
+		if(string.isEmpty() || language instanceof UnknownLanguage)
 			return;
 
-		if(!db.status())
+		if(!storage.status())
 		{
-			translate(text, language, callback);
+			translate(string, language, callback);
 			return;
 		}
 
-		db.select(text, language, string ->
+		storage.select(string, language, type, select ->
 		{
-			if(string == null)
-				translate(text, language, insert ->
+			if(select == null)
+			{
+				storage.select(string, language, deprecated ->
 				{
-					db.insert(text, insert, language, () -> log.info("[{}] INSERT", language.code));
-					callback.translate(insert);
+					if(deprecated == null)
+					{
+						translate(string, language, insert ->
+						{
+							storage.insert(insert, string, language, type, () -> log.debug("[{}] INSERT", language));
+							callback.translate(insert);
+						});
+					}
+					else
+					{
+						storage.insert(deprecated, string, language, type, () -> log.debug("[{}] DEPRECATED", language));
+						callback.translate(deprecated);
+					}
 				});
+			}
 			else
 			{
-				log.info("[{}] SELECT", language.code);
-				callback.translate(string);
+				log.debug("[{}] SELECT", language);
+				callback.translate(select);
 			}
 		});
 	}
 
-	public void translate(String text, Language language, Translate callback)
+	public void translate(String string, PolywoofStorage.Language language, Translatable callback)
 	{
-		String string = PolywoofFormatter.filter(text);
-
-		if(string.isEmpty() || !(language instanceof TrustedLanguage))
+		if((string = PolywoofFormatter.filter(string)).isEmpty() || !(language instanceof TrustedLanguage))
 			return;
 
 		RequestBody request = new FormBody.Builder()
 			.add("text", string)
-			.add("target_lang", language.code)
+			.add("target_lang", language.toString())
 			.add("source_lang", "en")
 			.add("preserve_formatting", "1")
 			.add("tag_handling", "html")
@@ -212,22 +235,16 @@ public class PolywoofTranslator
 		});
 	}
 
-	public void languages(String type, PolywoofDB db, Languages callback)
+	public void usage(Usable callback)
 	{
-		if(!db.status())
+		post("/v2/usage", new FormBody.Builder().build(), body ->
 		{
-			languages(type, callback);
-			return;
-		}
-
-		languages(type, update ->
-		{
-			db.update(update, language -> log.info("[{}] UPDATE", language.code));
-			callback.languages(update);
+			JsonObject json = parser.parse(body).getAsJsonObject();
+			callback.usage(json.get("character_count").getAsLong(), json.get("character_limit").getAsLong());
 		});
 	}
 
-	public void languages(String type, Languages callback)
+	public void languages(String type, Supportable callback)
 	{
 		post("/v2/languages", new FormBody.Builder().add("type", type).build(), body ->
 		{
@@ -240,17 +257,8 @@ public class PolywoofTranslator
 				for(JsonElement element : json)
 					trusted.add(new TrustedLanguage(element.getAsJsonObject()));
 
-				callback.languages(trusted);
+				callback.list(trusted);
 			}
-		});
-	}
-
-	public void usage(Usage callback)
-	{
-		post("/v2/usage", new FormBody.Builder().build(), body ->
-		{
-			JsonObject json = parser.parse(body).getAsJsonObject();
-			callback.usage(json.get("character_count").getAsLong(), json.get("character_limit").getAsLong());
 		});
 	}
 
@@ -260,27 +268,27 @@ public class PolywoofTranslator
 		key = auth;
 	}
 
-	public interface Receive
+	public interface Receivable
 	{
 		void receive(String body) throws Exception;
 	}
 
-	public interface Translate
+	public interface Translatable
 	{
 		void translate(String text);
 	}
 
-	public interface Languages
-	{
-		void languages(List<Language> languages);
-	}
-
-	public interface Usage
+	public interface Usable
 	{
 		void usage(long characterCount, long characterLimit);
 	}
 
-	public static class TrustedLanguage extends Language
+	public interface Supportable
+	{
+		void list(List<PolywoofStorage.Language> languages);
+	}
+
+	public static class TrustedLanguage extends PolywoofStorage.Language
 	{
 		public TrustedLanguage(JsonObject object)
 		{
@@ -288,7 +296,7 @@ public class PolywoofTranslator
 		}
 	}
 
-	public static class OfflineLanguage extends Language
+	public static class OfflineLanguage extends PolywoofStorage.Language
 	{
 		public OfflineLanguage(String code, String name)
 		{
@@ -296,18 +304,11 @@ public class PolywoofTranslator
 		}
 	}
 
-	public static class UnknownLanguage extends Language
+	public static class UnknownLanguage extends PolywoofStorage.Language
 	{
 		public UnknownLanguage(String code)
 		{
 			super(code, "Unknown");
 		}
-	}
-
-	@AllArgsConstructor(access = AccessLevel.PRIVATE)
-	public static class Language
-	{
-		public final String code;
-		public final String name;
 	}
 }

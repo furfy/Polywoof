@@ -74,14 +74,14 @@ public interface PolywoofConfig extends Config
 		Translation
 	 */
 
-	@ConfigItem(keyName = "enableExamine", name = "Examine", description = "Translate any examine", section = translationSection, position = 0)
-	default boolean enableExamine()
+	@ConfigItem(keyName = "enableMessages", name = "Chat Messages", description = "Translate chat messages", section = translationSection, position = 0)
+	default boolean enableMessages()
 	{
 		return true;
 	}
 
-	@ConfigItem(keyName = "enableChat", name = "Chat Messages", description = "Translate chat messages", section = translationSection, position = 1)
-	default boolean enableChat()
+	@ConfigItem(keyName = "enableExamine", name = "Examine", description = "Translate any examine", section = translationSection, position = 1)
+	default boolean enableExamine()
 	{
 		return true;
 	}
@@ -110,7 +110,7 @@ public interface PolywoofConfig extends Config
 		return false;
 	}
 
-	@ConfigItem(keyName = "enableDiary", name = "Quests Diary", description = "Translate quests diary", warning = "It uses a lot of resources to translate! Are you sure?", section = translationSection, position = 6)
+	@ConfigItem(keyName = "enableDiary", name = "Quest Diary", description = "Translate quest diary", warning = "It uses a lot of resources to translate! Are you sure?", section = translationSection, position = 6)
 	default boolean enableDiary()
 	{
 		return false;
@@ -156,17 +156,17 @@ public interface PolywoofConfig extends Config
 		Formatting
 	 */
 
+	@ConfigItem(keyName = "textAlignment", name = "Text Alignment", description = "Move it to the right place", section = formattingSection, position = 0)
+	default PolywoofComponent.Behaviour textAlignment()
+	{
+		return PolywoofComponent.Behaviour.DEFAULT;
+	}
+
 	@Range(min = 32, max = 2277)
-	@ConfigItem(keyName = "textWrap", name = "Text Wrap Width", description = "Longest text ever", section = formattingSection, position = 0)
+	@ConfigItem(keyName = "textWrap", name = "Text Wrap Width", description = "Longest text ever", section = formattingSection, position = 1)
 	default int textWrap()
 	{
 		return 420;
-	}
-
-	@ConfigItem(keyName = "numberedOptions", name = "Numbered Options", description = "Let's count up to ten", section = formattingSection, position = 1)
-	default boolean numberedOptions()
-	{
-		return true;
 	}
 
 	@ConfigItem(keyName = "sourceName", name = "Source Name", description = "Tell me who said that", section = formattingSection, position = 2)
@@ -175,9 +175,9 @@ public interface PolywoofConfig extends Config
 		return true;
 	}
 
-	@ConfigItem(keyName = "sourceSeparator", name = "Source Separator", description = "Nothing can separate us", section = formattingSection, position = 3)
-	default String sourceSeparator()
+	@ConfigItem(keyName = "numberedOptions", name = "Numbered Options", description = "Let's count up to ten", section = formattingSection, position = 3)
+	default boolean numberedOptions()
 	{
-		return ": ";
+		return true;
 	}
 }
