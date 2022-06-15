@@ -64,16 +64,13 @@ public class PolywoofFormatter
 		Pattern.compile("  +")
 	};
 
-	public static void parser(@Nullable String string, BlockEntry[] entries, Parsable callback)
+	public static void parser(String string, BlockEntry[] entries, Parsable callback)
 	{
-		if(string == null)
-			return;
-
 		for(BlockEntry entry : entries)
 		{
 			Matcher matcher = entry.pattern.matcher(string);
 
-			if(matcher.matches())
+			if(matcher.find())
 			{
 				if(entry.replacement == null)
 					return;
@@ -83,7 +80,8 @@ public class PolywoofFormatter
 				for(int i = 0; i < matcher.groupCount(); i++)
 					groups[i] = matcher.group(i + 1);
 
-				callback.parse(String.format(entry.replacement, groups));
+				string = String.format(entry.replacement, groups);
+				break;
 			}
 		}
 
@@ -97,9 +95,9 @@ public class PolywoofFormatter
 
 		string = filterPatterns[0].matcher(string).replaceAll(" ");
 		string = filterPatterns[1].matcher(string).replaceAll("");
-		string = filterPatterns[2].matcher(string).replaceAll(" ").trim();
+		string = filterPatterns[2].matcher(string).replaceAll(" ");
 
-		return string;
+		return string.trim();
 	}
 
 	public static String formatOptions(Widget ... options)

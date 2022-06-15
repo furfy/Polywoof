@@ -447,6 +447,5 @@ public class PolywoofPlugin extends Plugin
 		public static final int SCROLL_222 = 222;
 		public static final int DIALOG_229 = 229;
 		public static final int BOOK_392 = 392;
-	//	public static final int BOOK_680 = 680;
 	}
 }
