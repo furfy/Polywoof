@@ -220,7 +220,7 @@ public class PolywoofPlugin extends Plugin
 			switch(actor.getId())
 			{
 				default:
-					header = event.getActor().getName();
+					header = actor.getName();
 					string = event.getOverheadText();
 					type = PolywoofStorage.DataType.OVERHEAD_TEXT;
 					break;
